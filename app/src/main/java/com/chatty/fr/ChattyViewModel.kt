@@ -3,6 +3,7 @@ package com.chatty.fr
 import android.app.Application
 import android.database.ContentObserver
 import android.os.Handler
+import android.util.Log
 import android.os.Looper
 import android.provider.ContactsContract
 import android.provider.Telephony
@@ -33,6 +34,27 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class ChattyViewModel(app: Application) : AndroidViewModel(app) {
+
+    private companion object { const val TAG = "ChattyViewModel" }
+
+    /** External Android/SMS/MMS APIs can fail at runtime; never let expected operation failures crash the app. */
+    private suspend fun safeOperation(label: String, block: suspend () -> Unit) {
+        try {
+            block()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: SecurityException) {
+            Log.e(TAG, "$label: permission denied", e)
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "$label: invalid argument", e)
+        } catch (e: IllegalStateException) {
+            Log.e(TAG, "$label: invalid state", e)
+        } catch (e: android.os.OperationCanceledException) {
+            Log.e(TAG, "$label: operation cancelled by platform", e)
+        } catch (e: java.io.IOException) {
+            Log.e(TAG, "$label: I/O failure", e)
+        }
+    }
 
     val store = ChattyStore.get(app)
     private val repo = SmsRepository(app)
@@ -144,7 +166,7 @@ class ChattyViewModel(app: Application) : AndroidViewModel(app) {
         val delaySec = store.undoDelaySeconds
         if (delaySec <= 0) {
             viewModelScope.launch(Dispatchers.IO) {
-                SmsSender.send(getApplication(), address, body, effect, threadId, subId = store.simFor(threadId))
+                safeOperation("send SMS") { SmsSender.send(getApplication(), address, body, effect, threadId, subId = store.simFor(threadId)) }
             }
             return
         }
@@ -169,7 +191,7 @@ class ChattyViewModel(app: Application) : AndroidViewModel(app) {
             val budget = (MmsTransport.maxSize(app, subId) * 0.9 / uris.size.coerceAtLeast(1)).toInt()
             val attachments = uris.mapNotNull { MediaUtils.compressImage(app, android.net.Uri.parse(it), budget) }
             val body = if (replyTo != null && text.isNotBlank()) MessageFormat.encodeReply(replyTo.body, text) else text
-            SmsSender.sendMedia(app, address, body.ifBlank { null }, attachments, effect, threadId, subId)
+            safeOperation("send MMS") { SmsSender.sendMedia(app, address, body.ifBlank { null }, attachments, effect, threadId, subId) }
         }
     }
 
@@ -184,7 +206,7 @@ class ChattyViewModel(app: Application) : AndroidViewModel(app) {
         val item = _pending.value.firstOrNull { it.id == id } ?: return
         _pending.value = _pending.value.filterNot { it.id == id }
         viewModelScope.launch(Dispatchers.IO) {
-            SmsSender.send(getApplication(), item.address, item.text, item.effect, item.threadId, subId = store.simFor(item.threadId))
+            safeOperation("send pending SMS") { SmsSender.send(getApplication(), item.address, item.text, item.effect, item.threadId, subId = store.simFor(item.threadId)) }
         }
     }
 
@@ -200,14 +222,14 @@ class ChattyViewModel(app: Application) : AndroidViewModel(app) {
         val text = if (current == emoji) MessageFormat.encodeReaction(emoji, message.body, removed = true)
         else MessageFormat.encodeReaction(emoji, message.body)
         viewModelScope.launch(Dispatchers.IO) {
-            SmsSender.send(getApplication(), address, text, null, message.threadId, withSignature = false, subId = store.simFor(message.threadId))
+            safeOperation("send reaction") { SmsSender.send(getApplication(), address, text, null, message.threadId, withSignature = false, subId = store.simFor(message.threadId)) }
         }
     }
 
     /** Envoi groupé : un SMS individuel par destinataire. */
     fun sendToMany(addresses: List<String>, text: String, effect: MessageEffect?) {
         viewModelScope.launch(Dispatchers.IO) {
-            addresses.forEach { SmsSender.send(getApplication(), it, text, effect) }
+            addresses.forEach { address -> safeOperation("send group SMS") { SmsSender.send(getApplication(), address, text, effect) } }
         }
     }
 
@@ -220,7 +242,7 @@ class ChattyViewModel(app: Application) : AndroidViewModel(app) {
         ScheduledSendWorker.sendNow(getApplication(), id)
     }
 
-    fun retry(messageId: Long) = viewModelScope.launch(Dispatchers.IO) { SmsSender.retry(getApplication(), messageId) }
+    fun retry(messageId: Long) = viewModelScope.launch(Dispatchers.IO) { safeOperation("retry SMS") { SmsSender.retry(getApplication(), messageId) } }
 
     fun deleteMessage(id: Long) = viewModelScope.launch(Dispatchers.IO) { repo.deleteMessage(id) }
 
@@ -252,8 +274,8 @@ class ChattyViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         if (observing) {
-            getApplication<Application>().contentResolver.unregisterContentObserver(smsObserver)
-            getApplication<Application>().contentResolver.unregisterContentObserver(contactsObserver)
+            runCatching { getApplication<Application>().contentResolver.unregisterContentObserver(smsObserver) }
+            runCatching { getApplication<Application>().contentResolver.unregisterContentObserver(contactsObserver) }
         }
     }
 }
