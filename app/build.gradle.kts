@@ -11,23 +11,36 @@ kotlin {
 }
 
 android {
-    namespace = "com.furaxdev.chatty"
+    namespace = "com.chatty.fr"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.furaxdev.chatty"
+        applicationId = "com.chatty.fr"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        // En CI, le numéro de build GitHub fait monter la version à chaque push.
+        val build = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        versionCode = build
+        versionName = "1.$build"
+    }
+
+    signingConfigs {
+        // Clé fixe pour que chaque APK de la CI s'installe par-dessus le précédent.
+        // Pour le Play Store, définir CHATTY_KEYSTORE* dans les secrets GitHub.
+        create("chatty") {
+            val custom = System.getenv("CHATTY_KEYSTORE_PATH")
+            storeFile = if (custom != null) file(custom) else rootProject.file("signing/chatty-ci.jks")
+            storePassword = System.getenv("CHATTY_KEYSTORE_PASSWORD") ?: "chattyci"
+            keyAlias = System.getenv("CHATTY_KEY_ALIAS") ?: "chatty"
+            keyPassword = System.getenv("CHATTY_KEY_PASSWORD") ?: "chattyci"
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Signé avec la clé debug pour pouvoir installer l'APK release directement.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("chatty")
         }
     }
 

@@ -9,5 +9,4 @@
 .externalNativeBuild/
 .cxx/
 *.keystore
-*.jks
 .kotlin/

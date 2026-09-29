@@ -31,6 +31,14 @@ encodage Unicode, soit 70 caractères par SMS au lieu de 160, uniquement quand u
 - 🎨 Couleur des bulles au choix, signature automatique, brouillons conservés
 - Liens `sms:` / `smsto:` et partage de texte depuis d'autres applis
 
+## Télécharger
+
+Chaque push déclenche la CI GitHub (tests, lint, APK signé) puis publie l'APK dans
+les **Releases** du dépôt : `Chatty-1.N.apk`. Les versions s'installent par-dessus les
+précédentes (clé de signature fixe, voir `signing/README.md`).
+
+Identifiant de l'appli : `com.chatty.fr`.
+
 ## Compiler
 
 Prérequis : JDK 17+ et le SDK Android (API 35).
@@ -40,13 +48,13 @@ Prérequis : JDK 17+ et le SDK Android (API 35).
 # APK : app/build/outputs/apk/release/app-release.apk
 ```
 
-La CI GitHub produit aussi l'APK à chaque push (onglet *Actions* → artefact `chatty-apk`).
+La CI GitHub produit aussi l'APK à chaque push (Releases, ou onglet *Actions* → artefact `chatty-apk`).
 
 Au premier lancement, Chatty demande à devenir l'**appli SMS par défaut** (obligatoire sur Android
 pour envoyer et recevoir des SMS). On peut revenir à Google Messages à tout moment dans les réglages.
 
 ## Limites actuelles
-- Les MMS (photos, groupes MMS) ne sont pas encore pris en charge : Chatty gère les SMS texte.
+- MMS : photos et groupes pris en charge ; vidéos et messages audio reçus s'ouvrent dans une autre appli.
 - Les réactions et favoris sont stockés sur le téléphone uniquement (ils ne sont pas envoyés).
 
 ## Stack
