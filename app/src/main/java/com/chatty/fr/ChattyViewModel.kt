@@ -71,8 +71,14 @@ class ChattyViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { store.version.drop(1).collect { refresh() } }
     }
 
+    private var otpCleaned = false
+
     /** À appeler une fois les permissions obtenues. */
     fun start() {
+        if (!otpCleaned && store.autoDeleteOtp) {
+            otpCleaned = true
+            viewModelScope.launch(Dispatchers.IO) { runCatching { repo.deleteOldOtps() } }
+        }
         if (!observing) {
             val resolver = getApplication<Application>().contentResolver
             runCatching {

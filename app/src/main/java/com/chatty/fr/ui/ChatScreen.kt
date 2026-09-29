@@ -183,6 +183,19 @@ fun ChatScreen(
         androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia(5)
     ) { uris -> uris.forEach { if (attachments.size < 5) attachments += it.toString() } }
 
+    fun insertLocation() {
+        val loc = LocationShare.lastKnown(context)
+        if (loc == null) {
+            Toast.makeText(context, "Position indisponible : activez la localisation puis réessayez", Toast.LENGTH_LONG).show()
+        } else {
+            val msg = LocationShare.message(loc)
+            text = if (text.isBlank()) msg else "${text.trimEnd()}\n$msg"
+        }
+    }
+    val locationPermission = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { granted -> if (granted.values.any { it }) insertLocation() }
+
     fun send(effect: MessageEffect?, overrideText: String? = null) {
         val body = (overrideText ?: text).trim()
         if (overrideText == null && attachments.isNotEmpty()) {
@@ -395,6 +408,15 @@ fun ChatScreen(
                         )
                     },
                     onRemoveAttachment = { attachments.remove(it) },
+                    onShareLocation = {
+                        val has = androidx.core.content.ContextCompat.checkSelfPermission(
+                            context, android.Manifest.permission.ACCESS_COARSE_LOCATION,
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        if (has) insertLocation()
+                        else locationPermission.launch(
+                            arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                        )
+                    },
                     mms = isGroup,
                 )
             }

@@ -22,7 +22,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Tests, lint et APK
-        run: ./gradlew testAndroid10DebugUnitTest lintAndroid10Debug lintAndroid8Debug assembleAndroid10Release assembleAndroid8Release
+        run: ./gradlew testAndroid10DebugUnitTest testAndroid8DebugUnitTest lintAndroid10Debug lintAndroid8Debug assembleAndroid10Release assembleAndroid8Release
 
       - name: Renommer les APK
         run: |

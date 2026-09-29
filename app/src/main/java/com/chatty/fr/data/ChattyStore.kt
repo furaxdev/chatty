@@ -172,6 +172,11 @@ class ChattyStore private constructor(context: Context) {
         get() = prefs.getBoolean("private_notifications", false)
         set(value) { prefs.edit { putBoolean("private_notifications", value) }; bump() }
 
+    /** Supprime les SMS de code de vérification après 24 h (comme Google Messages). */
+    var autoDeleteOtp: Boolean
+        get() = prefs.getBoolean("auto_delete_otp", false)
+        set(value) { prefs.edit { putBoolean("auto_delete_otp", value) }; bump() }
+
     var signature: String
         get() = prefs.getString("signature", "").orEmpty()
         set(value) { prefs.edit { putString("signature", value) }; bump() }

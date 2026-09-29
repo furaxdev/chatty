@@ -341,6 +341,22 @@ class SmsRepository(private val context: Context) {
         return null
     }
 
+    /** Supprime les codes de vérification reçus il y a plus de 24 h. Renvoie le nombre supprimé. */
+    fun deleteOldOtps(): Int {
+        val limit = System.currentTimeMillis() - 24 * 3_600_000L
+        val ids = ArrayList<Long>()
+        runCatching {
+            resolver.query(
+                Telephony.Sms.Inbox.CONTENT_URI, arrayOf(Telephony.Sms._ID, Telephony.Sms.BODY),
+                "${Telephony.Sms.DATE} < ?", arrayOf(limit.toString()), null,
+            )?.use { c ->
+                while (c.moveToNext()) if (MessageFormat.findOtp(c.getString(1).orEmpty()) != null) ids += c.getLong(0)
+            }
+        }
+        ids.forEach(::deleteMessage)
+        return ids.size
+    }
+
     fun threadIdFor(address: String): Long =
         if (address.contains(',')) Telephony.Threads.getOrCreateThreadId(context, address.split(',').map { it.trim() }.toSet())
         else Telephony.Threads.getOrCreateThreadId(context, address)

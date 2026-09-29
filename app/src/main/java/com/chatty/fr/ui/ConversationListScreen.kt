@@ -2,6 +2,9 @@ package com.chatty.fr.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -108,8 +111,10 @@ fun ConversationListScreen(
         messageHits = if (query.length >= 2) vm.searchMessages(query) else emptyList()
     }
 
-    val visible = remember(all, query, archivedMode) {
+    var filter by rememberSaveable { mutableStateOf(ListFilter.ALL) }
+    val visible = remember(all, query, archivedMode, filter) {
         all.filter { it.archived == archivedMode }
+            .filter { filter.accepts(it) }
             .filter {
                 query.isBlank() || it.contact.displayName.contains(query, true) ||
                     it.address.contains(query) || it.snippet.contains(query, true)
@@ -198,12 +203,17 @@ fun ConversationListScreen(
             }
         },
     ) { padding ->
+        if (!archivedMode && selection.isEmpty() && all.isNotEmpty()) {
+            FilterRow(filter, all, Modifier.padding(top = padding.calculateTopPadding())) { filter = it }
+        }
+        val topPad = if (!archivedMode && selection.isEmpty() && all.isNotEmpty()) FilterRowHeight else 0.dp
         if (loaded && visible.isEmpty() && messageHits.isEmpty()) {
             EmptyState(
-                Modifier.padding(padding),
+                Modifier.padding(padding).padding(top = topPad),
                 when {
                     query.isNotBlank() -> "Aucun résultat pour « $query »"
                     archivedMode -> "Aucune conversation archivée"
+                    filter != ListFilter.ALL -> "Rien dans « ${filter.label} »"
                     else -> "Aucune conversation pour l'instant.\nDémarrez-en une !"
                 },
             )
@@ -211,7 +221,7 @@ fun ConversationListScreen(
         }
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(top = topPad),
             contentPadding = PaddingValues(bottom = 96.dp),
         ) {
             items(visible, key = { it.threadId }) { conv ->
@@ -451,5 +461,59 @@ private fun EmptyState(modifier: Modifier, message: String) {
             message, color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
+    }
+}
+
+
+/** Filtres rapides au-dessus de la liste (comme les onglets de Google Messages). */
+enum class ListFilter(val label: String) {
+    ALL("Tous"),
+    UNREAD("Non lus"),
+    PERSONAL("Personnel"),
+    BUSINESS("Pro & codes");
+
+    fun accepts(c: Conversation): Boolean = when (this) {
+        ALL -> true
+        UNREAD -> c.unreadCount > 0
+        PERSONAL -> !isBusiness(c)
+        BUSINESS -> isBusiness(c)
+    }
+
+    companion object {
+        /** Expéditeur « pro » : nom alphanumérique (BANQUE, Amazon…) ou numéro court (38000). */
+        fun isBusiness(c: Conversation): Boolean {
+            if (c.address.contains(',')) return false
+            val a = c.address.trim()
+            if (a.any { it.isLetter() }) return true
+            val digits = a.count { it.isDigit() }
+            return c.contact.name == null && digits in 1..6
+        }
+    }
+}
+
+private val FilterRowHeight = 52.dp
+
+@Composable
+private fun FilterRow(current: ListFilter, all: List<Conversation>, modifier: Modifier, onSelect: (ListFilter) -> Unit) {
+    val counts = remember(all) {
+        ListFilter.entries.associateWith { f -> all.count { !it.archived && f.accepts(it) } }
+    }
+    Row(
+        modifier
+            .fillMaxWidth()
+            .height(FilterRowHeight)
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ListFilter.entries.forEach { f ->
+            val n = counts[f] ?: 0
+            FilterChip(
+                selected = current == f,
+                onClick = { onSelect(f) },
+                label = { Text(if (f == ListFilter.UNREAD && n > 0) "${f.label} ($n)" else f.label) },
+            )
+        }
     }
 }

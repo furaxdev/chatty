@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_conversation"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_new"
+        android:shortcutShortLabel="@string/shortcut_new_short"
+        android:shortcutLongLabel="@string/shortcut_new_long">
+        <intent
+            android:action="com.chatty.fr.NEW_CONVERSATION"
+            android:targetPackage="com.chatty.fr"
+            android:targetClass="com.chatty.fr.MainActivity" />
+    </shortcut>
+</shortcuts>

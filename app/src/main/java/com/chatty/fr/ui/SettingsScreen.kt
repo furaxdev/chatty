@@ -162,6 +162,11 @@ fun SettingsScreen(store: ChattyStore, onBack: () -> Unit, onBlocked: () -> Unit
                     Toggle("Verrouiller Chatty", "Empreinte, visage ou code du téléphone à l'ouverture", store.appLock) { store.appLock = it }
                 }
                 Toggle(
+                    "Supprimer les codes après 24 h",
+                    "Efface automatiquement les SMS de code de vérification",
+                    store.autoDeleteOtp,
+                ) { store.autoDeleteOtp = it }
+                Toggle(
                     "Notifications discrètes",
                     "Affiche « Nouveau message » sans le contenu",
                     store.privateNotifications,

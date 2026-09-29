@@ -57,7 +57,12 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.outlined.EmojiEmotions
@@ -97,6 +102,7 @@ fun Composer(
     onSimClick: () -> Unit = {},
     attachments: List<String> = emptyList(),
     onAddAttachment: (() -> Unit)? = null,
+    onShareLocation: (() -> Unit)? = null,
     onRemoveAttachment: (String) -> Unit = {},
     mms: Boolean = false,
 ) {
@@ -110,6 +116,27 @@ fun Composer(
     // Le bouton gonfle pendant l'appui, comme sur iMessage, pour signaler l'appui long.
     val pressScale by animateFloatAsState(if (pressed && canSend) 1.18f else 1f, tween(350), label = "press")
     var emojiOpen by rememberSaveable { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // Dictée vocale : le texte reconnu est ajouté à la zone de saisie.
+    val dictation = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val spoken = result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (!spoken.isNullOrBlank()) {
+            val joined = if (text.isBlank()) spoken.replaceFirstChar { it.uppercase() } else "${text.trimEnd()} $spoken"
+            onTextChange(joined)
+        }
+    }
+    fun startDictation() {
+        val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "fr-FR")
+            putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Dictez votre message")
+        }
+        runCatching { dictation.launch(intent) }.onFailure {
+            android.widget.Toast.makeText(context, "Dictée vocale indisponible sur ce téléphone", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // Valeur interne avec curseur, pour insérer les emojis au bon endroit.
     var field by remember { mutableStateOf(TextFieldValue(text, TextRange(text.length))) }
@@ -176,9 +203,24 @@ fun Composer(
             }
         }
         Row(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.Bottom) {
-            if (onAddAttachment != null) {
-                IconButton(onClick = onAddAttachment, modifier = Modifier.padding(bottom = 4.dp)) {
-                    Icon(Icons.Default.AddPhotoAlternate, "Ajouter une photo", tint = MaterialTheme.colorScheme.primary)
+            if (onAddAttachment != null || onShareLocation != null) {
+                var plusMenu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { plusMenu = true }, modifier = Modifier.padding(bottom = 4.dp)) {
+                        Icon(Icons.Default.AddCircle, "Joindre", tint = MaterialTheme.colorScheme.primary)
+                    }
+                    DropdownMenu(plusMenu, onDismissRequest = { plusMenu = false }) {
+                        if (onAddAttachment != null) DropdownMenuItem(
+                            text = { Text("Photo") },
+                            leadingIcon = { Icon(Icons.Default.AddPhotoAlternate, null) },
+                            onClick = { plusMenu = false; onAddAttachment() },
+                        )
+                        if (onShareLocation != null) DropdownMenuItem(
+                            text = { Text("Ma position") },
+                            leadingIcon = { Icon(Icons.Default.LocationOn, null) },
+                            onClick = { plusMenu = false; onShareLocation() },
+                        )
+                    }
                 }
             }
             Row(
@@ -249,13 +291,13 @@ fun Composer(
                         .size(48.dp)
                         .scale(pressScale)
                         .clip(CircleShape)
-                        .background(if (canSend) sendColor else MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .background(if (canSend) sendColor else MaterialTheme.colorScheme.primaryContainer)
                         .combinedClickable(
                             interactionSource = interaction,
                             indication = null,
-                            enabled = canSend,
-                            onClick = onSend,
+                            onClick = { if (canSend) onSend() else startDictation() },
                             onLongClick = {
+                                if (!canSend) return@combinedClickable
                                 if (hapticsEnabled) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 onLongPressSend()
                             },
@@ -264,8 +306,9 @@ fun Composer(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Filled.Send, "Envoyer (appui long : effets)",
-                        tint = if (canSend) onSendColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                        if (canSend) Icons.AutoMirrored.Filled.Send else Icons.Default.Mic,
+                        if (canSend) "Envoyer (appui long : effets)" else "Dicter un message",
+                        tint = if (canSend) onSendColor else MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(22.dp),
                     )
                     if (pressed && canSend) {

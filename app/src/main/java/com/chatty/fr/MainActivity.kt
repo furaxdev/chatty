@@ -298,6 +298,7 @@ class MainActivity : FragmentActivity() {
                     else -> push(Screen.New(body))
                 }
             }
+            intent.action == "com.chatty.fr.NEW_CONVERSATION" -> push(Screen.New())
             intent.action == Intent.ACTION_SEND && intent.type == "text/plain" -> {
                 push(Screen.New(intent.getStringExtra(Intent.EXTRA_TEXT)))
             }
