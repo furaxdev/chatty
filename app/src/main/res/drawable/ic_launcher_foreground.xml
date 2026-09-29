@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Bulle de discussion -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M36,34h36a8,8 0,0 1,8 8v20a8,8 0,0 1,-8 8H52l-11,9v-9h-5a8,8 0,0 1,-8 -8V42a8,8 0,0 1,8 -8z" />
+    <!-- Étincelle (les effets) -->
+    <path
+        android:fillColor="#FF3D5AFE"
+        android:pathData="M54,40l2.6,7.4L64,50l-7.4,2.6L54,60l-2.6,-7.4L44,50l7.4,-2.6z" />
+</vector>

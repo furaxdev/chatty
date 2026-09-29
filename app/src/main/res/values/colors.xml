@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="chatty_bg">#FFF8F9FF</color>
+    <color name="chatty_brand">#FF3D5AFE</color>
+    <color name="chatty_brand_dark">#FF6C3DF4</color>
+</resources>
