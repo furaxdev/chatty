@@ -22,22 +22,24 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Tests, lint et APK
-        run: ./gradlew testDebugUnitTest lintDebug assembleRelease
+        run: ./gradlew testAndroid10DebugUnitTest lintAndroid10Debug lintAndroid8Debug assembleAndroid10Release assembleAndroid8Release
 
-      - name: Renommer l'APK
-        run: cp app/build/outputs/apk/release/app-release.apk "Chatty-1.${{ github.run_number }}.apk"
+      - name: Renommer les APK
+        run: |
+          cp app/build/outputs/apk/android10/release/app-android10-release.apk "Chatty-1.${{ github.run_number }}.apk"
+          cp app/build/outputs/apk/android8/release/app-android8-release.apk "Chatty-1.${{ github.run_number }}-android8.apk"
 
       - uses: actions/upload-artifact@v4
         with:
           name: chatty-apk
-          path: Chatty-1.${{ github.run_number }}.apk
+          path: Chatty-1.${{ github.run_number }}*.apk
 
       - name: Rapport lint
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lint-report
-          path: app/build/reports/lint-results-debug.html
+          path: app/build/reports/lint-results-*.html
           if-no-files-found: ignore
 
   # CD : chaque push réussi publie l'APK dans une Release GitHub téléchargeable.
@@ -56,9 +58,12 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: Chatty 1.${{ github.run_number }}
           prerelease: ${{ github.ref_name != 'main' }}
-          files: Chatty-1.${{ github.run_number }}.apk
+          files: Chatty-1.${{ github.run_number }}*.apk
           body: |
-            APK de Chatty construit automatiquement depuis `${{ github.ref_name }}` (commit ${{ github.sha }}).
+            APK de Chatty construits automatiquement depuis `${{ github.ref_name }}` (commit ${{ github.sha }}).
 
-            Installation : télécharge `Chatty-1.${{ github.run_number }}.apk` sur ton téléphone Android (10+) et ouvre-le.
+            - **Android 10 et plus** : `Chatty-1.${{ github.run_number }}.apk`
+            - **Android 8 et 9** : `Chatty-1.${{ github.run_number }}-android8.apk`
+
+            Installation : télécharge l'APK qui correspond à ton téléphone et ouvre-le.
             Les versions suivantes s'installent par-dessus sans perdre tes réglages.

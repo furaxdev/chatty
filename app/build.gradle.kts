@@ -16,7 +16,7 @@ android {
 
     defaultConfig {
         applicationId = "com.chatty.fr"
-        minSdk = 29
+        minSdk = 26
         targetSdk = 35
         // En CI, le numéro de build GitHub fait monter la version à chaque push.
         val build = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
@@ -33,6 +33,20 @@ android {
             storePassword = System.getenv("CHATTY_KEYSTORE_PASSWORD") ?: "chattyci"
             keyAlias = System.getenv("CHATTY_KEY_ALIAS") ?: "chatty"
             keyPassword = System.getenv("CHATTY_KEY_PASSWORD") ?: "chattyci"
+        }
+    }
+
+    // Deux APK : un pour Android 10+ et un pour Android 8-9.
+    flavorDimensions += "android"
+    productFlavors {
+        create("android10") {
+            dimension = "android"
+            minSdk = 29
+        }
+        create("android8") {
+            dimension = "android"
+            minSdk = 26
+            versionNameSuffix = "-android8"
         }
     }
 

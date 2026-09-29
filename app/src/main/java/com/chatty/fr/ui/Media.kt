@@ -143,6 +143,10 @@ fun ImageViewer(attachment: Attachment, onClose: () -> Unit) {
     BackHandler(onBack = onClose)
     val context = LocalContext.current
     val bmp = rememberBitmap(attachment.uri, 2048)
+    // Android 8-9 : enregistrer dans la galerie demande la permission de stockage.
+    val storagePermission = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) saveToGallery(context, attachment) }
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     Box(Modifier.fillMaxSize().background(Color.Black).clickable(onClick = {}), contentAlignment = Alignment.Center) {
@@ -167,7 +171,13 @@ fun ImageViewer(attachment: Attachment, onClose: () -> Unit) {
         Row(Modifier.fillMaxWidth().systemBarsPadding().align(Alignment.TopCenter).padding(8.dp)) {
             IconButton(onClick = onClose) { Icon(Icons.Default.Close, "Fermer", tint = Color.White) }
             Box(Modifier.weight(1f))
-            IconButton(onClick = { saveToGallery(context, attachment) }) { Icon(Icons.Default.Download, "Enregistrer", tint = Color.White) }
+            IconButton(onClick = {
+                val needsPermission = android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q &&
+                    androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
+                    android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (needsPermission) storagePermission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                else saveToGallery(context, attachment)
+            }) { Icon(Icons.Default.Download, "Enregistrer", tint = Color.White) }
             IconButton(onClick = {
                 context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
                     type = attachment.contentType
@@ -185,7 +195,9 @@ private fun saveToGallery(context: android.content.Context, a: Attachment) {
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, "Chatty_${System.currentTimeMillis()}.$ext")
             put(MediaStore.Images.Media.MIME_TYPE, a.contentType)
-            put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Chatty")
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Chatty")
+            }
         }
         val target = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: error("insert")
         context.contentResolver.openInputStream(Uri.parse(a.uri))?.use { input ->

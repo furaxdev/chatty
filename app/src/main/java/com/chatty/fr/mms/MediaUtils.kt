@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import java.io.ByteArrayOutputStream
 
 object MediaUtils {
@@ -20,14 +21,19 @@ object MediaUtils {
             val raw = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             if (raw != null && raw.size <= maxBytes) return@runCatching Pdu.Attachment("image/gif", raw, "image.gif")
         }
-        val source = ImageDecoder.createSource(context.contentResolver, uri)
-        var bitmap = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
-            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-            val longest = maxOf(info.size.width, info.size.height)
-            if (longest > 1600) {
-                val scale = 1600f / longest
-                decoder.setTargetSize((info.size.width * scale).toInt(), (info.size.height * scale).toInt())
+        var bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val source = ImageDecoder.createSource(context.contentResolver, uri)
+            ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                val longest = maxOf(info.size.width, info.size.height)
+                if (longest > 1600) {
+                    val scale = 1600f / longest
+                    decoder.setTargetSize((info.size.width * scale).toInt(), (info.size.height * scale).toInt())
+                }
             }
+        } else {
+            // Android 8 : décodage sous-échantillonné puis rotation EXIF ignorée.
+            loadThumbnail(context, uri, 1600) ?: error("image illisible")
         }
         var quality = 85
         var bytes = encode(bitmap, quality)

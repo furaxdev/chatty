@@ -34,7 +34,7 @@ encodage Unicode, soit 70 caractères par SMS au lieu de 160, uniquement quand u
 ## Télécharger
 
 Chaque push déclenche la CI GitHub (tests, lint, APK signé) puis publie l'APK dans
-les **Releases** du dépôt : `Chatty-1.N.apk`. Les versions s'installent par-dessus les
+les **Releases** du dépôt : `Chatty-1.N.apk` (Android 10+) et `Chatty-1.N-android8.apk` (Android 8-9). Les versions s'installent par-dessus les
 précédentes (clé de signature fixe, voir `signing/README.md`).
 
 Identifiant de l'appli : `com.chatty.fr`.
@@ -58,4 +58,4 @@ pour envoyer et recevoir des SMS). On peut revenir à Google Messages à tout mo
 - Les réactions et favoris sont stockés sur le téléphone uniquement (ils ne sont pas envoyés).
 
 ## Stack
-Kotlin · Jetpack Compose · Material 3 · WorkManager · minSdk 29 (Android 10) · targetSdk 35
+Kotlin · Jetpack Compose · Material 3 · WorkManager · deux APK : Android 10+ (minSdk 29) et Android 8-9 (minSdk 26) · targetSdk 35

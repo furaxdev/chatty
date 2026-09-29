@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Telephony
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -153,19 +154,35 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun checkRole() {
-        val rm = getSystemService(RoleManager::class.java)
-        isDefault.value = rm?.isRoleHeld(RoleManager.ROLE_SMS) == true
+        isDefault.value = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            getSystemService(RoleManager::class.java)?.isRoleHeld(RoleManager.ROLE_SMS) == true
+        } else {
+            // Android 8-9 : pas de RoleManager, on compare l'appli SMS par défaut.
+            Telephony.Sms.getDefaultSmsPackage(this) == packageName
+        }
     }
 
     private fun requestRole() {
-        val rm = getSystemService(RoleManager::class.java) ?: return
-        roleRequest.launch(rm.createRequestRoleIntent(RoleManager.ROLE_SMS))
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            getSystemService(RoleManager::class.java)?.createRequestRoleIntent(RoleManager.ROLE_SMS) ?: return
+        } else {
+            Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT)
+                .putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, packageName)
+        }
+        roleRequest.launch(intent)
     }
 
     private fun askOptionalPermissions() {
         val perms = buildList {
             add(Manifest.permission.READ_CONTACTS)
             add(Manifest.permission.READ_PHONE_STATE)
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                // Android 8-9 : les permissions SMS ne sont pas toujours accordées avec le rôle.
+                add(Manifest.permission.READ_SMS)
+                add(Manifest.permission.SEND_SMS)
+                add(Manifest.permission.RECEIVE_SMS)
+                add(Manifest.permission.RECEIVE_MMS)
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
         }
         permissionRequest.launch(perms.toTypedArray())
