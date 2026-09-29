@@ -8,6 +8,9 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
@@ -43,15 +46,40 @@ val BubblePalette = listOf(
     Color(0xFF263238), // Ardoise
 )
 
+/** 0 = suivre le système, 1 = clair, 2 = sombre, 3 = noir AMOLED. */
+const val THEME_SYSTEM = 0
+const val THEME_LIGHT = 1
+const val THEME_DARK = 2
+const val THEME_BLACK = 3
+
 @Composable
-fun ChattyTheme(dynamicColor: Boolean, content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
+fun ChattyTheme(dynamicColor: Boolean, themeMode: Int = THEME_SYSTEM, textScale: Float = 1f, content: @Composable () -> Unit) {
+    val dark = when (themeMode) {
+        THEME_LIGHT -> false
+        THEME_DARK, THEME_BLACK -> true
+        else -> isSystemInDarkTheme()
+    }
     val context = LocalContext.current
-    val scheme = when {
+    var scheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
             if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         dark -> Dark
         else -> Light
     }
-    MaterialTheme(colorScheme = scheme, content = content)
+    if (themeMode == THEME_BLACK) {
+        // Noir pur : économise la batterie sur les écrans OLED.
+        scheme = scheme.copy(
+            background = Color.Black,
+            surface = Color.Black,
+            surfaceContainerLowest = Color.Black,
+            surfaceContainerLow = Color(0xFF0A0A0A),
+            surfaceContainer = Color(0xFF111111),
+            surfaceContainerHigh = Color(0xFF1A1A1A),
+            surfaceContainerHighest = Color(0xFF222222),
+        )
+    }
+    val density = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale * textScale)) {
+        MaterialTheme(colorScheme = scheme, content = content)
+    }
 }

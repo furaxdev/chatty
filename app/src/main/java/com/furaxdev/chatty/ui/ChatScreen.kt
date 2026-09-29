@@ -176,8 +176,24 @@ fun ChatScreen(
     var remindOf by remember { mutableStateOf<Message?>(null) }
     var menu by remember { mutableStateOf(false) }
 
+    val isGroup = address.contains(',')
+    val attachments = remember(threadId) { androidx.compose.runtime.mutableStateListOf<String>() }
+    var viewing by remember { mutableStateOf<com.furaxdev.chatty.data.Attachment?>(null) }
+    val pickMedia = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia(5)
+    ) { uris -> uris.forEach { if (attachments.size < 5) attachments += it.toString() } }
+
     fun send(effect: MessageEffect?, overrideText: String? = null) {
         val body = (overrideText ?: text).trim()
+        if (overrideText == null && attachments.isNotEmpty()) {
+            vm.sendMedia(address, body, attachments.toList(), effect, threadId, replyTo)
+            attachments.clear()
+            replyTo = null
+            text = ""
+            store.setDraft(threadId, "")
+            showPicker = false
+            return
+        }
         if (body.isEmpty()) return
         vm.send(address, body, effect, threadId, replyTo)
         replyTo = null
@@ -324,6 +340,16 @@ fun ChatScreen(
                                         copy(context, code)
                                         Toast.makeText(context, "Code $code copié", Toast.LENGTH_SHORT).show()
                                     },
+                                    senderName = if (isGroup && !row.m.isMine && row.m.address.isNotBlank()) vm.contact(row.m.address).displayName else null,
+                                    onOpenAttachment = { a ->
+                                        if (a.isImage) viewing = a
+                                        else runCatching {
+                                            context.startActivity(Intent(Intent.ACTION_VIEW).apply {
+                                                setDataAndType(shareableUri(context, a), a.contentType)
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            })
+                                        }
+                                    },
                                 )
                             }
                         }
@@ -360,6 +386,16 @@ fun ChatScreen(
                     onEmojiUsed = store::pushRecentEmoji,
                     simLabel = simLabel,
                     onSimClick = { simPicker = true },
+                    attachments = attachments,
+                    onAddAttachment = {
+                        pickMedia.launch(
+                            androidx.activity.result.PickVisualMediaRequest(
+                                androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                            )
+                        )
+                    },
+                    onRemoveAttachment = { attachments.remove(it) },
+                    mms = isGroup,
                 )
             }
         }
@@ -386,6 +422,8 @@ fun ChatScreen(
         screenEffect?.let { (effect, body) ->
             ScreenEffectOverlay(effect, body) { screenEffect = null }
         }
+
+        viewing?.let { a -> ImageViewer(a) { viewing = null } }
     }
 
     if (showSchedule) {

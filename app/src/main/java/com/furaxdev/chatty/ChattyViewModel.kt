@@ -17,6 +17,8 @@ import com.furaxdev.chatty.data.MessageFormat
 import com.furaxdev.chatty.data.ScheduledMessage
 import com.furaxdev.chatty.data.SmsRepository
 import com.furaxdev.chatty.effects.MessageEffect
+import com.furaxdev.chatty.mms.MediaUtils
+import com.furaxdev.chatty.mms.MmsTransport
 import com.furaxdev.chatty.sms.Notifications
 import com.furaxdev.chatty.sms.ReminderWorker
 import com.furaxdev.chatty.sms.ScheduledSendWorker
@@ -150,6 +152,18 @@ class ChattyViewModel(app: Application) : AndroidViewModel(app) {
                     SmsSender.send(getApplication(), address, body, effect, threadId, subId = store.simFor(threadId))
                 }
             }
+        }
+    }
+
+    /** Envoie des photos en MMS (compressées pour respecter la limite de l'opérateur). */
+    fun sendMedia(address: String, text: String, uris: List<String>, effect: MessageEffect?, threadId: Long, replyTo: Message? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val app = getApplication<Application>()
+            val subId = store.simFor(threadId)
+            val budget = (MmsTransport.maxSize(app, subId) * 0.9 / uris.size.coerceAtLeast(1)).toInt()
+            val attachments = uris.mapNotNull { MediaUtils.compressImage(app, android.net.Uri.parse(it), budget) }
+            val body = if (replyTo != null && text.isNotBlank()) MessageFormat.encodeReply(replyTo.body, text) else text
+            SmsSender.sendMedia(app, address, body.ifBlank { null }, attachments, effect, threadId, subId)
         }
     }
 

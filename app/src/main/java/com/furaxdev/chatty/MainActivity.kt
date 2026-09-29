@@ -117,7 +117,11 @@ class MainActivity : FragmentActivity() {
 
         setContent {
             val version by vm.store.version.collectAsState()
-            ChattyTheme(dynamicColor = vm.store.dynamicColor.also { version }) {
+            ChattyTheme(
+                dynamicColor = vm.store.dynamicColor.also { version },
+                themeMode = vm.store.themeMode,
+                textScale = vm.store.textScale,
+            ) {
                 Surface(Modifier.fillMaxSize()) {
                     when {
                         !isDefault.value -> OnboardingScreen(onMakeDefault = ::requestRole)
@@ -236,6 +240,9 @@ class MainActivity : FragmentActivity() {
                     onStart = { contacts ->
                         if (contacts.size == 1) openChat(contacts.first().number, text = screen.text)
                         else push(Screen.Broadcast(contacts, screen.text))
+                    },
+                    onStartGroup = { contacts ->
+                        openChat(contacts.joinToString(",") { it.number }, text = screen.text)
                     },
                 )
                 is Screen.Chat -> ChatScreen(

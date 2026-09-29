@@ -74,6 +74,10 @@ fun ScreenEffectOverlay(effect: MessageEffect, text: String, onFinished: () -> U
                 MessageEffect.SPOTLIGHT -> spotlight(t)
                 MessageEffect.ECHO -> echo(t, rnd, measurer, text)
                 MessageEffect.SNOW -> snow(t, rnd)
+                MessageEffect.EMOJI_RAIN -> emojiRain(t, rnd, measurer, text)
+                MessageEffect.RAINBOW -> rainbow(t)
+                MessageEffect.MONEY -> money(t, rnd, measurer)
+                MessageEffect.SHOOTING_STARS -> shootingStars(t, rnd)
                 else -> Unit
             }
         }
@@ -279,6 +283,105 @@ private fun DrawScope.snow(t: Float, rnd: Random) {
         val y = ((offset + t * speed) % 1f) * size.height
         val x = x0 + sin(t * 8f + it) * 18f
         drawCircle(Color.White.copy(alpha = alpha * 0.9f), r, Offset(x, y))
+    }
+}
+
+/** Emojis présents dans le texte (ou 🎉 par défaut). */
+private fun emojisOf(text: String): List<String> {
+    val out = ArrayList<String>()
+    var i = 0
+    while (i < text.length) {
+        val cp = text.codePointAt(i)
+        if (Character.getType(cp) == Character.OTHER_SYMBOL.toInt()) out += String(Character.toChars(cp))
+        i += Character.charCount(cp)
+    }
+    return out.distinct().ifEmpty { listOf("🎉", "😄", "✨") }
+}
+
+private fun DrawScope.emojiRain(t: Float, rnd: Random, measurer: TextMeasurer, text: String) {
+    val emojis = emojisOf(text)
+    val alpha = fade(t, 0.02f, 0.85f)
+    repeat(60) {
+        val x = rnd.nextFloat() * size.width
+        val delay = rnd.nextFloat() * 0.4f
+        val speed = 0.7f + rnd.nextFloat() * 0.7f
+        val local = ((t - delay) / (1f - delay)).coerceIn(0f, 1f)
+        if (local <= 0f) return@repeat
+        val y = -80f + local * speed * (size.height + 160f)
+        val e = emojis[rnd.nextInt(emojis.size)]
+        rotate(sin(local * 6f + it) * 25f, Offset(x, y)) {
+            drawText(measurer, e, Offset(x, y), TextStyle(fontSize = (22 + rnd.nextInt(20)).sp, color = Color.Black.copy(alpha = alpha)))
+        }
+    }
+}
+
+private fun DrawScope.rainbow(t: Float) {
+    val alpha = fade(t, 0.12f, 0.75f)
+    val colors = listOf(
+        Color(0xFFFF1744), Color(0xFFFF9100), Color(0xFFFFEA00), Color(0xFF00E676),
+        Color(0xFF2979FF), Color(0xFF651FFF), Color(0xFFD500F9),
+    )
+    val center = Offset(size.width / 2, size.height * 0.75f)
+    val grow = (t / 0.4f).coerceAtMost(1f)
+    val band = size.minDimension * 0.05f
+    colors.forEachIndexed { i, c ->
+        val r = (size.minDimension * 0.75f - i * band) * grow
+        if (r <= 0f) return@forEachIndexed
+        drawArc(
+            c.copy(alpha = 0.85f * alpha), 180f, 180f, useCenter = false,
+            topLeft = Offset(center.x - r, center.y - r), size = Size(r * 2, r * 2),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(band),
+        )
+    }
+    // Petits nuages aux extrémités
+    val cloud = Color.White.copy(alpha = alpha)
+    listOf(center.x - size.minDimension * 0.62f, center.x + size.minDimension * 0.62f).forEach { cx ->
+        drawCircle(cloud, 40f * grow, Offset(cx, center.y))
+        drawCircle(cloud, 30f * grow, Offset(cx - 38f, center.y + 10f))
+        drawCircle(cloud, 30f * grow, Offset(cx + 38f, center.y + 10f))
+    }
+}
+
+private fun DrawScope.money(t: Float, rnd: Random, measurer: TextMeasurer) {
+    val alpha = fade(t, 0.02f, 0.85f)
+    repeat(45) {
+        val x0 = rnd.nextFloat() * size.width
+        val delay = rnd.nextFloat() * 0.45f
+        val local = ((t - delay) / (1f - delay)).coerceIn(0f, 1f)
+        if (local <= 0f) return@repeat
+        val y = -60f + local * (size.height + 120f) * (0.6f + rnd.nextFloat() * 0.5f)
+        val x = x0 + sin(local * 9f + it) * 50f
+        val symbol = if (rnd.nextInt(4) == 0) "🪙" else "💵"
+        rotate(sin(local * 8f + it) * 40f, Offset(x, y)) {
+            drawText(measurer, symbol, Offset(x, y), TextStyle(fontSize = 30.sp, color = Color.Black.copy(alpha = alpha)))
+        }
+    }
+}
+
+private fun DrawScope.shootingStars(t: Float, rnd: Random) {
+    val alpha = fade(t, 0.08f, 0.85f)
+    drawRect(Color(0xFF0B1026).copy(alpha = 0.8f * alpha))
+    // Ciel étoilé
+    repeat(120) {
+        val p = Offset(rnd.nextFloat() * size.width, rnd.nextFloat() * size.height)
+        val tw = 0.4f + 0.6f * sin(t * 20f + it)
+        drawCircle(Color.White.copy(alpha = alpha * tw.coerceIn(0f, 1f)), 1.5f + rnd.nextFloat() * 1.5f, p)
+    }
+    // Étoiles filantes
+    repeat(7) {
+        val start = rnd.nextFloat() * 0.6f
+        val local = ((t - start) / 0.3f)
+        if (local !in 0f..1f) return@repeat
+        val from = Offset(size.width * (0.3f + rnd.nextFloat() * 0.9f), size.height * rnd.nextFloat() * 0.4f)
+        val dir = Offset(-1f, 0.55f)
+        val len = size.maxDimension * 0.6f
+        val head = from + dir * (len * local)
+        val tail = head - dir * 220f
+        drawLine(
+            Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = alpha)), tail, head),
+            tail, head, strokeWidth = 4f, cap = StrokeCap.Round,
+        )
+        drawCircle(Color.White.copy(alpha = alpha), 5f, head)
     }
 }
 

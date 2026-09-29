@@ -45,6 +45,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.furaxdev.chatty.data.ChattyStore
 import com.furaxdev.chatty.ui.theme.BubblePalette
+import com.furaxdev.chatty.ui.theme.THEME_BLACK
+import com.furaxdev.chatty.ui.theme.THEME_DARK
+import com.furaxdev.chatty.ui.theme.THEME_LIGHT
+import com.furaxdev.chatty.ui.theme.THEME_SYSTEM
+import androidx.compose.foundation.horizontalScroll
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,7 +77,7 @@ fun SettingsScreen(store: ChattyStore, onBack: () -> Unit, onBlocked: () -> Unit
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     BubblePalette.forEachIndexed { i, color ->
@@ -93,6 +98,16 @@ fun SettingsScreen(store: ChattyStore, onBack: () -> Unit, onBlocked: () -> Unit
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     Toggle("Couleurs Material You", "Suit le fond d'écran de votre téléphone", store.dynamicColor) { store.dynamicColor = it }
                 }
+                ChipRow(
+                    "Thème",
+                    listOf(THEME_SYSTEM to "Système", THEME_LIGHT to "Clair", THEME_DARK to "Sombre", THEME_BLACK to "Noir AMOLED"),
+                    store.themeMode,
+                ) { store.themeMode = it }
+                ChipRow(
+                    "Taille du texte",
+                    listOf(0.9f to "Petit", 1f to "Normal", 1.15f to "Grand", 1.3f to "Très grand"),
+                    store.textScale,
+                ) { store.textScale = it }
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Section("Effets")
@@ -161,6 +176,19 @@ fun SettingsScreen(store: ChattyStore, onBack: () -> Unit, onBlocked: () -> Unit
                     supportingContent = { Text("Version 1.0.0 · par FuraxDev") },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun <T> ChipRow(title: String, options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
+    Text(title, modifier = Modifier.padding(start = 16.dp, top = 12.dp), style = MaterialTheme.typography.bodyLarge)
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        options.forEach { (value, label) ->
+            FilterChip(selected = value == selected, onClick = { onSelect(value) }, label = { Text(label) })
         }
     }
 }

@@ -76,6 +76,22 @@
             android:name=".sms.SmsStatusReceiver"
             android:exported="false" />
 
+        <!-- Résultats d'envoi et de téléchargement des MMS -->
+        <receiver
+            android:name=".mms.MmsTransport$MmsResultReceiver"
+            android:exported="false" />
+
+        <!-- Fichiers PDU échangés avec le service MMS du système -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.mmsfiles"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/mms_paths" />
+        </provider>
+
         <!-- Réponse rapide depuis la notification + « marquer comme lu » -->
         <receiver
             android:name=".sms.NotificationActionReceiver"

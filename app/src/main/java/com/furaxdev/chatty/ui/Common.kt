@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -68,6 +69,7 @@ fun Avatar(contact: Contact, size: Dp = 48.dp, modifier: Modifier = Modifier) {
         val img = photo
         when {
             img != null -> Image(img, null, Modifier.size(size), contentScale = ContentScale.Crop)
+            contact.number.contains(',') -> Icon(Icons.Default.Groups, null, tint = Color.White, modifier = Modifier.size(size * 0.6f))
             contact.name?.firstOrNull()?.isLetter() == true -> Text(
                 contact.name.first().uppercase(),
                 color = Color.White,

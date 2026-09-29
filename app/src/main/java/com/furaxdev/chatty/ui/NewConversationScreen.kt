@@ -61,6 +61,7 @@ fun NewConversationScreen(
     vm: ChattyViewModel,
     onBack: () -> Unit,
     onStart: (List<Contact>) -> Unit,
+    onStartGroup: (List<Contact>) -> Unit = onStart,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var dialpad by rememberSaveable { mutableStateOf(false) }
@@ -87,14 +88,22 @@ fun NewConversationScreen(
                 title = { Text("Nouvelle discussion") },
                 actions = {
                     if (picked.size > 1) {
-                        TextButton(onClick = { onStart(picked.toList()) }) { Text("Envoi groupé") }
+                        TextButton(onClick = { onStart(picked.toList()) }) { Text("Envoi individuel") }
                     }
                 },
             )
         },
         floatingActionButton = {
             if (picked.isNotEmpty()) {
-                FloatingActionButton(onClick = { onStart(picked.toList()) }) { Icon(Icons.Default.Check, "Suivant") }
+                if (picked.size > 1) {
+                    androidx.compose.material3.ExtendedFloatingActionButton(
+                        onClick = { onStartGroup(picked.toList()) },
+                        icon = { Icon(Icons.Default.Groups, null) },
+                        text = { Text("Créer le groupe") },
+                    )
+                } else {
+                    FloatingActionButton(onClick = { onStart(picked.toList()) }) { Icon(Icons.Default.Check, "Suivant") }
+                }
             }
         },
     ) { padding ->
@@ -146,7 +155,7 @@ fun NewConversationScreen(
                 if (picked.size == 1 && query.isBlank()) {
                     item {
                         ListItem(
-                            headlineContent = { Text("Ajouter des destinataires pour un envoi groupé") },
+                            headlineContent = { Text("Ajoutez des personnes pour créer un groupe (MMS)") },
                             leadingContent = { Icon(Icons.Default.Groups, null) },
                             colors = androidx.compose.material3.ListItemDefaults.colors(
                                 headlineColor = MaterialTheme.colorScheme.onSurfaceVariant,

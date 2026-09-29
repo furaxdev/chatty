@@ -69,6 +69,11 @@ fun Modifier.bubbleEffect(effect: MessageEffect?, playKey: Any?, isMine: Boolean
                     18f at 450; -10f at 525; 10f at 600; -4f at 700; 0f at 900
                 })
             }
+            MessageEffect.JELLY -> {
+                // Rebondit comme de la gelée
+                scale.snapTo(0.2f)
+                scale.animateTo(1f, spring(dampingRatio = 0.25f, stiffness = Spring.StiffnessLow))
+            }
             else -> Unit
         }
     }

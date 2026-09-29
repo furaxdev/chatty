@@ -126,6 +126,16 @@ class ChattyStore private constructor(context: Context) {
         get() = prefs.getInt("bubble_color", 0)
         set(value) { prefs.edit { putInt("bubble_color", value) }; bump() }
 
+    /** Voir THEME_* dans ui.theme. */
+    var themeMode: Int
+        get() = prefs.getInt("theme_mode", 0)
+        set(value) { prefs.edit { putInt("theme_mode", value) }; bump() }
+
+    /** Taille du texte (1 = normale). */
+    var textScale: Float
+        get() = prefs.getFloat("text_scale", 1f)
+        set(value) { prefs.edit { putFloat("text_scale", value) }; bump() }
+
     var dynamicColor: Boolean
         get() = prefs.getBoolean("dynamic_color", true)
         set(value) { prefs.edit { putBoolean("dynamic_color", value) }; bump() }

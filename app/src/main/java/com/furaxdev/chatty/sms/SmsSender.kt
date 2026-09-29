@@ -10,6 +10,8 @@ import com.furaxdev.chatty.data.ChattyStore
 import com.furaxdev.chatty.data.SmsRepository
 import com.furaxdev.chatty.effects.EffectCodec
 import com.furaxdev.chatty.effects.MessageEffect
+import com.furaxdev.chatty.mms.MmsTransport
+import com.furaxdev.chatty.mms.Pdu
 
 object SmsSender {
 
@@ -48,14 +50,42 @@ object SmsSender {
         val signature = if (withSignature) store.signature.trim() else ""
         val withSig = if (signature.isNotEmpty()) "$text\n$signature" else text
         val body = EffectCodec.encode(withSig, effect)
+        if (address.contains(',')) {
+            // Conversation de groupe : un seul MMS pour tout le monde.
+            val recipients = address.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+            val threadId = if (threadIdHint > 0) threadIdHint
+            else android.provider.Telephony.Threads.getOrCreateThreadId(context, recipients.toSet())
+            MmsTransport.send(context, threadId, recipients, body, emptyList(), subId)
+            return threadId
+        }
         val threadId = if (threadIdHint > 0) threadIdHint else repo.threadIdFor(address)
         val uri = repo.insertOutbox(address, body, threadId, subId) ?: return threadId
         transmit(context, uri, address, body, store.deliveryReports, subId)
         return threadId
     }
 
+    /** Envoie des photos (et un texte éventuel) en MMS, à une personne ou à un groupe. */
+    fun sendMedia(
+        context: Context,
+        address: String,
+        text: String?,
+        attachments: List<Pdu.Attachment>,
+        effect: MessageEffect? = null,
+        threadIdHint: Long = 0L,
+        subId: Int = -1,
+    ): Long {
+        val recipients = address.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+        val threadId = if (threadIdHint > 0) threadIdHint
+        else android.provider.Telephony.Threads.getOrCreateThreadId(context, recipients.toSet())
+        val body = text?.takeIf { it.isNotBlank() }?.let { EffectCodec.encode(it, effect) }
+        MmsTransport.send(context, threadId, recipients, body, attachments, subId)
+        return threadId
+    }
+
     /** Renvoie un message en échec. */
     fun retry(context: Context, messageId: Long) {
+        if (messageId < 0) return // MMS : pas de renvoi automatique
+
         val repo = SmsRepository(context)
         val (address, body) = repo.rawMessage(messageId) ?: return
         val uri = android.net.Uri.withAppendedPath(Telephony.Sms.CONTENT_URI, messageId.toString())

@@ -14,6 +14,11 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class SmsRepository(private val context: Context) {
 
+    companion object {
+        private const val MMS_SEND_REQ = 128
+        private const val MMS_RETRIEVE_CONF = 132
+    }
+
     private val resolver get() = context.contentResolver
     private val contactCache = ConcurrentHashMap<String, Contact>()
 
@@ -48,7 +53,8 @@ class SmsRepository(private val context: Context) {
                 )
             }
         }
-        return latest.values.map {
+        mergeMmsThreads(latest, unread)
+        return latest.values.sortedByDescending { it.date }.map {
             it.copy(
                 unreadCount = unread[it.threadId] ?: 0,
                 pinned = store.isPinned(it.threadId),
@@ -57,6 +63,149 @@ class SmsRepository(private val context: Context) {
             )
         }
     }
+
+    private class ThreadInfo(val id: Long, val addresses: List<String>, val snippet: String?, val date: Long, val count: Int)
+
+    /** Fils de discussion du système (SMS + MMS), avec leurs destinataires. */
+    private fun threads(): List<ThreadInfo>? = runCatching {
+        val canonical = HashMap<Long, String>()
+        resolver.query(Uri.parse("content://mms-sms/canonical-addresses"), arrayOf("_id", "address"), null, null, null)?.use { c ->
+            while (c.moveToNext()) canonical[c.getLong(0)] = c.getString(1).orEmpty()
+        }
+        val uri = Telephony.MmsSms.CONTENT_CONVERSATIONS_URI.buildUpon().appendQueryParameter("simple", "true").build()
+        resolver.query(
+            uri,
+            arrayOf(Telephony.Threads._ID, Telephony.Threads.RECIPIENT_IDS, Telephony.Threads.SNIPPET, Telephony.Threads.DATE, Telephony.Threads.MESSAGE_COUNT),
+            null, null, "${Telephony.Threads.DATE} DESC",
+        )?.use { c ->
+            buildList {
+                while (c.moveToNext()) {
+                    val ids = c.getString(1).orEmpty().split(' ').mapNotNull { it.toLongOrNull() }
+                    add(ThreadInfo(c.getLong(0), ids.mapNotNull { canonical[it] }.filter { it.isNotBlank() }, c.getString(2), c.getLong(3), c.getInt(4)))
+                }
+            }
+        }
+    }.getOrNull()
+
+    /** Ajoute les conversations dont le dernier message est un MMS (photos, groupes). */
+    private fun mergeMmsThreads(latest: LinkedHashMap<Long, Conversation>, unread: HashMap<Long, Int>) {
+        val mmsLatest = HashMap<Long, Pair<Long, Int>>() // fil -> (date ms, boîte)
+        runCatching {
+            resolver.query(
+                Telephony.Mms.CONTENT_URI,
+                arrayOf(Telephony.Mms.THREAD_ID, Telephony.Mms.DATE, Telephony.Mms.MESSAGE_BOX, Telephony.Mms.READ),
+                "${Telephony.Mms.MESSAGE_TYPE} IN (${MMS_SEND_REQ}, ${MMS_RETRIEVE_CONF})", null, "${Telephony.Mms.DATE} DESC",
+            )?.use { c ->
+                while (c.moveToNext()) {
+                    val t = c.getLong(0)
+                    if (c.getInt(2) == Telephony.Mms.MESSAGE_BOX_INBOX && c.getInt(3) == 0) unread[t] = (unread[t] ?: 0) + 1
+                    if (t !in mmsLatest) mmsLatest[t] = c.getLong(1) * 1000 to c.getInt(2)
+                }
+            }
+        }
+        if (mmsLatest.isEmpty()) return
+        val infos = threads()?.associateBy { it.id } ?: return
+        for ((threadId, mms) in mmsLatest) {
+            val info = infos[threadId] ?: continue
+            val sms = latest[threadId]
+            val group = info.addresses.size > 1
+            if (sms != null && sms.date >= mms.first && !group) continue
+            val address = if (group) info.addresses.joinToString(",") else info.addresses.firstOrNull() ?: sms?.address ?: continue
+            val newer = sms == null || mms.first >= sms.date
+            val (decoded, effect) = EffectCodec.decode(info.snippet.orEmpty())
+            val text = MessageFormat.decodeReply(decoded).second
+            latest[threadId] = Conversation(
+                threadId = threadId,
+                address = address,
+                contact = contact(address),
+                snippet = if (newer) text.ifBlank { "📷 Photo" } else sms!!.snippet,
+                snippetEffect = if (newer) effect else sms!!.snippetEffect,
+                date = maxOf(mms.first, sms?.date ?: 0),
+                unreadCount = 0,
+                lastIsMine = if (newer) mms.second != Telephony.Mms.MESSAGE_BOX_INBOX else sms!!.lastIsMine,
+            )
+        }
+    }
+
+    /** Messages MMS d'un fil (identifiants négatifs pour ne pas croiser ceux des SMS). */
+    private fun mmsMessages(threadId: Long, store: ChattyStore): List<Message> {
+        data class Row(val id: Long, val date: Long, val box: Int, val read: Boolean, val sub: Int, val subject: String?)
+        val rows = ArrayList<Row>()
+        runCatching {
+            resolver.query(
+                Telephony.Mms.CONTENT_URI,
+                arrayOf(Telephony.Mms._ID, Telephony.Mms.DATE, Telephony.Mms.MESSAGE_BOX, Telephony.Mms.READ, Telephony.Mms.SUBSCRIPTION_ID, Telephony.Mms.SUBJECT),
+                "${Telephony.Mms.THREAD_ID} = ? AND ${Telephony.Mms.MESSAGE_TYPE} IN (${MMS_SEND_REQ}, ${MMS_RETRIEVE_CONF})",
+                arrayOf(threadId.toString()), "${Telephony.Mms.DATE} ASC",
+            )?.use { c ->
+                while (c.moveToNext()) rows += Row(c.getLong(0), c.getLong(1) * 1000, c.getInt(2), c.getInt(3) != 0, c.getInt(4), c.getString(5))
+            }
+        }
+        if (rows.isEmpty()) return emptyList()
+
+        val texts = HashMap<Long, StringBuilder>()
+        val attachments = HashMap<Long, MutableList<Attachment>>()
+        runCatching {
+            resolver.query(
+                Uri.parse("content://mms/part"),
+                arrayOf(Telephony.Mms.Part._ID, Telephony.Mms.Part.MSG_ID, Telephony.Mms.Part.CONTENT_TYPE, Telephony.Mms.Part.TEXT),
+                "${Telephony.Mms.Part.MSG_ID} IN (${rows.joinToString(",") { it.id.toString() }})", null,
+                "${Telephony.Mms.Part.SEQ} ASC",
+            )?.use { c ->
+                while (c.moveToNext()) {
+                    val mid = c.getLong(1)
+                    val ct = c.getString(2).orEmpty().lowercase()
+                    when {
+                        ct == "text/plain" -> texts.getOrPut(mid) { StringBuilder() }.apply {
+                            if (isNotEmpty()) append('\n')
+                            append(c.getString(3).orEmpty())
+                        }
+                        ct.startsWith("image/") || ct.startsWith("video/") || ct.startsWith("audio/") ->
+                            attachments.getOrPut(mid) { ArrayList() } += Attachment("content://mms/part/${c.getLong(0)}", ct)
+                        ct == "text/x-vcard" || ct == "text/vcard" ->
+                            attachments.getOrPut(mid) { ArrayList() } += Attachment("content://mms/part/${c.getLong(0)}", ct)
+                    }
+                }
+            }
+        }
+
+        return rows.map { r ->
+            val raw = texts[r.id]?.toString().orEmpty().ifEmpty { r.subject.orEmpty() }
+            val (decoded, effect) = EffectCodec.decode(raw)
+            val (quote, body) = MessageFormat.decodeReply(decoded)
+            val mine = r.box != Telephony.Mms.MESSAGE_BOX_INBOX
+            val id = -r.id
+            Message(
+                id = id,
+                threadId = threadId,
+                address = if (mine) "" else mmsSender(r.id).orEmpty(),
+                body = body,
+                effect = effect,
+                date = r.date,
+                isMine = mine,
+                status = when (r.box) {
+                    Telephony.Mms.MESSAGE_BOX_INBOX -> MessageStatus.RECEIVED
+                    Telephony.Mms.MESSAGE_BOX_OUTBOX -> MessageStatus.SENDING
+                    Telephony.Mms.MESSAGE_BOX_FAILED -> MessageStatus.FAILED
+                    else -> MessageStatus.SENT
+                },
+                read = r.read,
+                reactions = listOfNotNull(store.reaction(id)?.let { Reaction(it, true) }),
+                starred = store.isStarred(id),
+                quote = quote,
+                subId = r.sub,
+                attachments = attachments[r.id].orEmpty(),
+                isMms = true,
+            )
+        }
+    }
+
+    private fun mmsSender(mmsId: Long): String? = runCatching {
+        resolver.query(
+            Uri.parse("content://mms/$mmsId/addr"), arrayOf(Telephony.Mms.Addr.ADDRESS),
+            "${Telephony.Mms.Addr.TYPE} = 137", null, null,
+        )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+    }.getOrNull()
 
     fun messages(threadId: Long, store: ChattyStore): List<Message> {
         val projection = arrayOf(
@@ -98,7 +247,8 @@ class SmsRepository(private val context: Context) {
                 )
             }
         }
-        return attachReactions(out)
+        val all = (out + mmsMessages(threadId, store)).sortedBy { it.date }
+        return attachReactions(all)
     }
 
     /**
@@ -191,7 +341,9 @@ class SmsRepository(private val context: Context) {
         return null
     }
 
-    fun threadIdFor(address: String): Long = Telephony.Threads.getOrCreateThreadId(context, address)
+    fun threadIdFor(address: String): Long =
+        if (address.contains(',')) Telephony.Threads.getOrCreateThreadId(context, address.split(',').map { it.trim() }.toSet())
+        else Telephony.Threads.getOrCreateThreadId(context, address)
 
     fun markThreadRead(threadId: Long) {
         val values = ContentValues().apply {
@@ -202,6 +354,16 @@ class SmsRepository(private val context: Context) {
             resolver.update(
                 Telephony.Sms.CONTENT_URI, values,
                 "${Telephony.Sms.THREAD_ID} = ? AND ${Telephony.Sms.READ} = 0", arrayOf(threadId.toString()),
+            )
+        }
+        val mmsValues = ContentValues().apply {
+            put(Telephony.Mms.READ, 1)
+            put(Telephony.Mms.SEEN, 1)
+        }
+        runCatching {
+            resolver.update(
+                Telephony.Mms.CONTENT_URI, mmsValues,
+                "${Telephony.Mms.THREAD_ID} = ? AND ${Telephony.Mms.READ} = 0", arrayOf(threadId.toString()),
             )
         }
     }
@@ -220,14 +382,25 @@ class SmsRepository(private val context: Context) {
     }
 
     fun deleteThread(threadId: Long) {
-        runCatching {
+        // Supprime SMS et MMS du fil.
+        val ok = runCatching {
+            resolver.delete(Uri.withAppendedPath(Telephony.Threads.CONTENT_URI, threadId.toString()), null, null)
+        }.isSuccess
+        if (!ok) runCatching {
             resolver.delete(Telephony.Sms.CONTENT_URI, "${Telephony.Sms.THREAD_ID} = ?", arrayOf(threadId.toString()))
         }
     }
 
+    /** Les MMS ont des identifiants négatifs dans Chatty. */
     fun deleteMessage(id: Long) {
-        runCatching { resolver.delete(Uri.withAppendedPath(Telephony.Sms.CONTENT_URI, id.toString()), null, null) }
+        val uri = if (id < 0) Uri.withAppendedPath(Telephony.Mms.CONTENT_URI, (-id).toString())
+        else Uri.withAppendedPath(Telephony.Sms.CONTENT_URI, id.toString())
+        runCatching { resolver.delete(uri, null, null) }
     }
+
+    /** Destinataires d'un fil (plusieurs pour une conversation de groupe). */
+    fun recipients(threadId: Long): List<String> =
+        threads()?.firstOrNull { it.id == threadId }?.addresses.orEmpty()
 
     fun insertInbox(address: String, body: String, date: Long, subId: Int): Uri? {
         val values = ContentValues().apply {
@@ -277,6 +450,13 @@ class SmsRepository(private val context: Context) {
     }
 
     fun contact(address: String): Contact {
+        if (address.contains(',')) {
+            // Conversation de groupe : « Alice, Bob et 2 autres »
+            val members = address.split(',').map { contact(it.trim()) }
+            val names = members.map { it.name?.substringBefore(' ') ?: it.number }
+            val label = if (names.size <= 3) names.joinToString(", ") else names.take(2).joinToString(", ") + " et ${names.size - 2} autres"
+            return Contact(ChattyStore.get(context).nickname(address) ?: label, address, null)
+        }
         val base = contactCache.getOrPut(address) { lookupContact(address) }
         val nick = ChattyStore.get(context).nickname(address)
         return if (nick != null) base.copy(name = nick) else base

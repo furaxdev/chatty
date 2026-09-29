@@ -26,7 +26,14 @@ enum class MessageEffect(val label: String, val kind: EffectKind, val emoji: Str
     LASERS("Lasers", EffectKind.SCREEN, "🪩"),
     FIREWORKS("Feux d'artifice", EffectKind.SCREEN, "🎆"),
     CELEBRATION("Célébration", EffectKind.SCREEN, "✨"),
-    SNOW("Neige", EffectKind.SCREEN, "❄️");
+    SNOW("Neige", EffectKind.SCREEN, "❄️"),
+
+    // Ajoutés ensuite (toujours à la fin : l'ordre sert à l'encodage dans le SMS)
+    EMOJI_RAIN("Pluie d'emojis", EffectKind.SCREEN, "🤩"),
+    RAINBOW("Arc-en-ciel", EffectKind.SCREEN, "🌈"),
+    MONEY("Pluie de billets", EffectKind.SCREEN, "💸"),
+    SHOOTING_STARS("Étoiles filantes", EffectKind.SCREEN, "🌠"),
+    JELLY("Gelée", EffectKind.BUBBLE, "🍮");
 
     companion object {
         val bubble = entries.filter { it.kind == EffectKind.BUBBLE }

@@ -57,6 +57,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.outlined.EmojiEmotions
@@ -94,10 +95,15 @@ fun Composer(
     onEmojiUsed: (String) -> Unit = {},
     simLabel: String? = null,
     onSimClick: () -> Unit = {},
+    attachments: List<String> = emptyList(),
+    onAddAttachment: (() -> Unit)? = null,
+    onRemoveAttachment: (String) -> Unit = {},
+    mms: Boolean = false,
 ) {
     val haptics = LocalHapticFeedback.current
     val keyboard = LocalSoftwareKeyboardController.current
-    val canSend = text.isNotBlank()
+    val canSend = text.isNotBlank() || attachments.isNotEmpty()
+    val isMms = mms || attachments.isNotEmpty()
     val segments = remember(text) { if (text.isEmpty()) null else runCatching { SmsSender.segments(text) }.getOrNull() }
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -139,7 +145,42 @@ fun Composer(
                 IconButton(onClick = onCancelReply) { Icon(Icons.Default.Close, "Annuler la réponse", Modifier.size(18.dp)) }
             }
         }
+        AnimatedVisibility(attachments.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                attachments.forEach { uri ->
+                    Box {
+                        val bmp = rememberBitmap(uri, 240)
+                        Box(
+                            Modifier.size(84.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                        ) {
+                            if (bmp != null) androidx.compose.foundation.Image(
+                                bmp, null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier.size(84.dp),
+                            )
+                        }
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(4.dp)
+                                .size(22.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.6f))
+                                .clickable { onRemoveAttachment(uri) },
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(Icons.Default.Close, "Retirer", tint = Color.White, modifier = Modifier.size(14.dp)) }
+                    }
+                }
+            }
+        }
         Row(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.Bottom) {
+            if (onAddAttachment != null) {
+                IconButton(onClick = onAddAttachment, modifier = Modifier.padding(bottom = 4.dp)) {
+                    Icon(Icons.Default.AddPhotoAlternate, "Ajouter une photo", tint = MaterialTheme.colorScheme.primary)
+                }
+            }
             Row(
                 Modifier
                     .weight(1f)
@@ -171,7 +212,7 @@ fun Composer(
                         .heightIn(min = 22.dp)
                         .onFocusChanged { if (it.isFocused) emojiOpen = false },
                     decorationBox = { inner ->
-                        if (text.isEmpty()) Text("Message SMS", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
+                        if (text.isEmpty()) Text(if (isMms) "Message MMS" else "Message SMS", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
                         inner()
                     },
                 )
@@ -191,10 +232,14 @@ fun Composer(
             }
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                AnimatedVisibility(segments != null && (segments[0] > 1 || segments[2] < 20)) {
-                    val s = segments!!
+                AnimatedVisibility(isMms || (segments != null && (segments[0] > 1 || segments[2] < 20))) {
+                    val s = segments
                     Text(
-                        if (s[0] > 1) "${s[2]} · ${s[0]} SMS" else "${s[2]}",
+                        when {
+                            isMms -> "MMS"
+                            s!![0] > 1 -> "${s[2]} · ${s[0]} SMS"
+                            else -> "${s[2]}"
+                        },
                         fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 4.dp),
                     )

@@ -41,8 +41,17 @@ data class Message(
     /** Texte cité quand le message est une réponse. */
     val quote: String? = null,
     val subId: Int = -1,
+    val attachments: List<Attachment> = emptyList(),
+    val isMms: Boolean = false,
 ) {
     val myReaction: String? get() = reactions.lastOrNull { it.mine }?.emoji
+}
+
+/** Pièce jointe d'un MMS (photo, vidéo, audio, carte de visite). */
+data class Attachment(val uri: String, val contentType: String) {
+    val isImage get() = contentType.startsWith("image/")
+    val isVideo get() = contentType.startsWith("video/")
+    val isAudio get() = contentType.startsWith("audio/")
 }
 
 data class Reaction(val emoji: String, val mine: Boolean)

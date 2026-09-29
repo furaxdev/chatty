@@ -175,6 +175,8 @@ fun MessageBubble(
     onReply: () -> Unit,
     onQuoteClick: (String) -> Unit,
     onCopyCode: (String) -> Unit,
+    senderName: String? = null,
+    onOpenAttachment: (com.furaxdev.chatty.data.Attachment) -> Unit = {},
 ) {
     val big = 20.dp
     val small = 4.dp
@@ -200,7 +202,20 @@ fun MessageBubble(
         Modifier.fillMaxWidth().padding(top = if (first) 8.dp else 2.dp),
         horizontalAlignment = if (m.isMine) Alignment.End else Alignment.Start,
     ) {
-        Box(Modifier.fillMaxWidth(), contentAlignment = if (m.isMine) Alignment.CenterEnd else Alignment.CenterStart) {
+        if (senderName != null && first && !m.isMine) {
+            Text(
+                senderName, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                color = avatarColor(m.address),
+                modifier = Modifier.padding(start = 12.dp, bottom = 2.dp),
+            )
+        }
+        m.attachments.forEach { a ->
+            Box(Modifier.padding(bottom = 3.dp)) {
+                AttachmentView(a, onOpen = { onOpenAttachment(a) }, onLongPress = onLongPress)
+            }
+        }
+        val hasText = m.body.isNotBlank() || m.quote != null
+        if (hasText) Box(Modifier.fillMaxWidth(), contentAlignment = if (m.isMine) Alignment.CenterEnd else Alignment.CenterStart) {
             // Icône « répondre » révélée par le glissement.
             Icon(
                 Icons.AutoMirrored.Filled.Reply, null,
@@ -293,7 +308,10 @@ fun MessageBubble(
                 }
             }
         }
-        if (m.reactions.isNotEmpty()) Spacer(Modifier.height(12.dp))
+        if (!hasText && m.reactions.isNotEmpty()) {
+            Text(m.reactions.joinToString(" ") { it.emoji }, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 8.dp))
+        }
+        if (m.reactions.isNotEmpty() && hasText) Spacer(Modifier.height(12.dp))
         if (otp != null) {
             AssistChip(
                 onClick = { onCopyCode(otp) },

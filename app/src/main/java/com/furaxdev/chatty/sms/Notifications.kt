@@ -99,11 +99,19 @@ object Notifications {
         }
 
         val me = Person.Builder().setName("Moi").build()
-        val sender = Person.Builder().setName(contact.displayName).setKey(address).build()
+        val group = address.contains(',')
         val style = NotificationCompat.MessagingStyle(me)
+        if (group) {
+            style.setGroupConversation(true)
+            style.setConversationTitle(contact.displayName)
+        }
         val hidden = ChattyStore.get(context).privateNotifications
         unread.forEach { msg ->
-            val text = msg.effect?.let { "${msg.body}  ${it.emoji}" } ?: msg.body
+            // Dans un groupe, chaque message a son propre expéditeur.
+            val who = if (group && msg.address.isNotBlank()) repo.contact(msg.address) else contact
+            val sender = Person.Builder().setName(who.displayName).setKey(who.number).build()
+            val body = msg.body.ifBlank { if (msg.attachments.isNotEmpty()) "📷 Photo" else "" }
+            val text = msg.effect?.let { "$body  ${it.emoji}" } ?: body
             if (hidden) {
                 style.addMessage("Nouveau message", msg.date, sender)
             } else {
@@ -151,6 +159,20 @@ object Notifications {
             .build()
         try {
             NotificationManagerCompat.from(context).notify(-1, notification)
+        } catch (_: SecurityException) {
+        }
+    }
+
+    fun showMmsFailed(context: Context) {
+        if (!canPost(context)) return
+        val notification = NotificationCompat.Builder(context, CHANNEL_ALERTS)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("MMS non téléchargé")
+            .setContentText("Vérifiez que les données mobiles sont activées.")
+            .setAutoCancel(true)
+            .build()
+        try {
+            NotificationManagerCompat.from(context).notify(-2, notification)
         } catch (_: SecurityException) {
         }
     }
