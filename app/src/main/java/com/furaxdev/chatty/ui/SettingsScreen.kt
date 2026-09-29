@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -110,6 +111,28 @@ fun SettingsScreen(store: ChattyStore, onBack: () -> Unit) {
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Section("SMS")
+                Toggle(
+                    "Envoyer les réactions par SMS",
+                    "Comme Google Messages : « A réagi avec ❤️ à … ». Sinon, elles restent sur ce téléphone",
+                    store.sendReactions,
+                ) { store.sendReactions = it }
+                Text(
+                    "Délai d'annulation d'envoi",
+                    modifier = Modifier.padding(start = 16.dp, top = 12.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    listOf(0 to "Aucun", 3 to "3 s", 5 to "5 s", 10 to "10 s").forEach { (sec, label) ->
+                        FilterChip(
+                            selected = store.undoDelaySeconds == sec,
+                            onClick = { store.undoDelaySeconds = sec },
+                            label = { Text(label) },
+                        )
+                    }
+                }
                 Toggle("Accusés de réception", "Affiche « Distribué » quand le SMS est arrivé", store.deliveryReports) { store.deliveryReports = it }
                 OutlinedTextField(
                     value = signature,

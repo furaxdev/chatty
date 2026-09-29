@@ -53,6 +53,22 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material.icons.outlined.EmojiEmotions
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.furaxdev.chatty.sms.SmsSender
@@ -69,37 +85,109 @@ fun Composer(
     onSend: () -> Unit,
     onLongPressSend: () -> Unit,
     modifier: Modifier = Modifier,
+    replyTo: String? = null,
+    replyAuthor: String? = null,
+    onCancelReply: () -> Unit = {},
+    suggestions: List<String> = emptyList(),
+    onSuggestion: (String) -> Unit = {},
+    recentEmojis: List<String> = emptyList(),
+    onEmojiUsed: (String) -> Unit = {},
+    simLabel: String? = null,
+    onSimClick: () -> Unit = {},
 ) {
     val haptics = LocalHapticFeedback.current
+    val keyboard = LocalSoftwareKeyboardController.current
     val canSend = text.isNotBlank()
     val segments = remember(text) { if (text.isEmpty()) null else runCatching { SmsSender.segments(text) }.getOrNull() }
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     // Le bouton gonfle pendant l'appui, comme sur iMessage, pour signaler l'appui long.
     val pressScale by animateFloatAsState(if (pressed && canSend) 1.18f else 1f, tween(350), label = "press")
+    var emojiOpen by rememberSaveable { mutableStateOf(false) }
 
-    Column(modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp)) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Box(
+    // Valeur interne avec curseur, pour insérer les emojis au bon endroit.
+    var field by remember { mutableStateOf(TextFieldValue(text, TextRange(text.length))) }
+    if (field.text != text) field = TextFieldValue(text, TextRange(text.length))
+
+    Column(modifier.fillMaxWidth()) {
+        AnimatedVisibility(suggestions.isNotEmpty() && text.isEmpty() && replyTo == null) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                suggestions.forEach { s ->
+                    SuggestionChip(onClick = { onSuggestion(s) }, label = { Text(s) }, shape = RoundedCornerShape(18.dp))
+                }
+            }
+        }
+        AnimatedVisibility(replyTo != null) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .padding(start = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.width(3.dp).height(34.dp).clip(RoundedCornerShape(2.dp)).background(sendColor))
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f).padding(vertical = 6.dp)) {
+                    Text("Réponse à ${replyAuthor.orEmpty()}", fontSize = 12.sp, color = sendColor, fontWeight = FontWeight.SemiBold)
+                    Text(replyTo.orEmpty(), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                IconButton(onClick = onCancelReply) { Icon(Icons.Default.Close, "Annuler la réponse", Modifier.size(18.dp)) }
+            }
+        }
+        Row(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.Bottom) {
+            Row(
                 Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(24.dp))
                     .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                    .padding(horizontal = 18.dp, vertical = 12.dp),
+                    .padding(start = 4.dp, end = 14.dp),
+                verticalAlignment = Alignment.Bottom,
             ) {
+                IconButton(onClick = {
+                    emojiOpen = !emojiOpen
+                    if (emojiOpen) keyboard?.hide() else keyboard?.show()
+                }) {
+                    Icon(
+                        if (emojiOpen) Icons.Default.Keyboard else Icons.Outlined.EmojiEmotions,
+                        if (emojiOpen) "Clavier" else "Emojis",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 BasicTextField(
-                    value = text,
-                    onValueChange = onTextChange,
+                    value = field,
+                    onValueChange = { field = it; if (it.text != text) onTextChange(it.text) },
                     textStyle = TextStyle(fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     maxLines = 6,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 22.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 13.dp)
+                        .heightIn(min = 22.dp)
+                        .onFocusChanged { if (it.isFocused) emojiOpen = false },
                     decorationBox = { inner ->
                         if (text.isEmpty()) Text("Message SMS", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
                         inner()
                     },
                 )
+                if (simLabel != null) {
+                    Text(
+                        simLabel,
+                        fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .padding(bottom = 14.dp, start = 6.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable(onClick = onSimClick)
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
             }
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -143,6 +231,15 @@ fun Composer(
                     }
                 }
             }
+        }
+        AnimatedVisibility(emojiOpen) {
+            EmojiPanel(recentEmojis, onPick = { emoji ->
+                val sel = field.selection
+                val newText = field.text.replaceRange(sel.min, sel.max, emoji)
+                field = TextFieldValue(newText, TextRange(sel.min + emoji.length))
+                onTextChange(newText)
+                onEmojiUsed(emoji)
+            })
         }
     }
 }

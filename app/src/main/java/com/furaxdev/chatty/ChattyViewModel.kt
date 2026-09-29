@@ -12,6 +12,7 @@ import com.furaxdev.chatty.data.ChattyStore
 import com.furaxdev.chatty.data.Contact
 import com.furaxdev.chatty.data.Conversation
 import com.furaxdev.chatty.data.Message
+import com.furaxdev.chatty.data.MessageFormat
 import com.furaxdev.chatty.data.ScheduledMessage
 import com.furaxdev.chatty.data.SmsRepository
 import com.furaxdev.chatty.effects.MessageEffect
@@ -20,6 +21,7 @@ import com.furaxdev.chatty.sms.ScheduledSendWorker
 import com.furaxdev.chatty.sms.SmsSender
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.drop
@@ -114,9 +116,69 @@ class ChattyViewModel(app: Application) : AndroidViewModel(app) {
 
     suspend fun threadIdFor(address: String): Long = withContext(Dispatchers.IO) { repo.threadIdFor(address) }
 
-    fun send(address: String, text: String, effect: MessageEffect?, threadId: Long) {
+    /** Messages en attente pendant le délai d'annulation. */
+    data class PendingSend(
+        val id: Long,
+        val address: String,
+        val threadId: Long,
+        val text: String,
+        val effect: MessageEffect?,
+        val sendAt: Long,
+    )
+
+    private val _pending = MutableStateFlow<List<PendingSend>>(emptyList())
+    val pending: StateFlow<List<PendingSend>> = _pending
+
+    fun send(address: String, text: String, effect: MessageEffect?, threadId: Long, replyTo: Message? = null) {
+        val body = if (replyTo != null) MessageFormat.encodeReply(replyTo.body, text) else text
+        val delaySec = store.undoDelaySeconds
+        if (delaySec <= 0) {
+            viewModelScope.launch(Dispatchers.IO) {
+                SmsSender.send(getApplication(), address, body, effect, threadId, subId = store.simFor(threadId))
+            }
+            return
+        }
+        val item = PendingSend(System.nanoTime(), address, threadId, body, effect, System.currentTimeMillis() + delaySec * 1000L)
+        _pending.value = _pending.value + item
+        viewModelScope.launch {
+            delay(delaySec * 1000L)
+            if (_pending.value.any { it.id == item.id }) {
+                _pending.value = _pending.value.filterNot { it.id == item.id }
+                withContext(Dispatchers.IO) {
+                    SmsSender.send(getApplication(), address, body, effect, threadId, subId = store.simFor(threadId))
+                }
+            }
+        }
+    }
+
+    /** Annule un envoi en attente et renvoie son texte pour le remettre dans la zone de saisie. */
+    fun cancelPending(id: Long): String? {
+        val item = _pending.value.firstOrNull { it.id == id } ?: return null
+        _pending.value = _pending.value.filterNot { it.id == id }
+        return MessageFormat.decodeReply(item.text).second
+    }
+
+    fun sendPendingNow(id: Long) {
+        val item = _pending.value.firstOrNull { it.id == id } ?: return
+        _pending.value = _pending.value.filterNot { it.id == id }
         viewModelScope.launch(Dispatchers.IO) {
-            SmsSender.send(getApplication(), address, text, effect, threadId)
+            SmsSender.send(getApplication(), item.address, item.text, item.effect, item.threadId, subId = store.simFor(item.threadId))
+        }
+    }
+
+    /** Réagit à un message : par SMS (comme Google Messages) ou seulement sur ce téléphone. */
+    fun react(message: Message, emoji: String, address: String) {
+        val current = message.myReaction
+        if (!store.sendReactions) {
+            store.setReaction(message.id, if (current == emoji) null else emoji)
+            return
+        }
+        // Une ancienne réaction locale est remplacée par celle envoyée.
+        store.setReaction(message.id, null)
+        val text = if (current == emoji) MessageFormat.encodeReaction(emoji, message.body, removed = true)
+        else MessageFormat.encodeReaction(emoji, message.body)
+        viewModelScope.launch(Dispatchers.IO) {
+            SmsSender.send(getApplication(), address, text, null, message.threadId, withSignature = false, subId = store.simFor(message.threadId))
         }
     }
 

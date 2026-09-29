@@ -110,6 +110,7 @@ class MainActivity : ComponentActivity() {
     private fun askOptionalPermissions() {
         val perms = buildList {
             add(Manifest.permission.READ_CONTACTS)
+            add(Manifest.permission.READ_PHONE_STATE)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
         }
         permissionRequest.launch(perms.toTypedArray())

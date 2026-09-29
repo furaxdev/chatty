@@ -36,9 +36,16 @@ data class Message(
     val isMine: Boolean,
     val status: MessageStatus,
     val read: Boolean,
-    val reaction: String? = null,
+    val reactions: List<Reaction> = emptyList(),
     val starred: Boolean = false,
-)
+    /** Texte cité quand le message est une réponse. */
+    val quote: String? = null,
+    val subId: Int = -1,
+) {
+    val myReaction: String? get() = reactions.lastOrNull { it.mine }?.emoji
+}
+
+data class Reaction(val emoji: String, val mine: Boolean)
 
 data class ScheduledMessage(
     val id: String,

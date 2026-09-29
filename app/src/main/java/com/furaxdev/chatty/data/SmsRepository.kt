@@ -34,7 +34,8 @@ class SmsRepository(private val context: Context) {
                 }
                 if (threadId in latest) continue
                 val address = c.getString(1) ?: continue
-                val (body, effect) = EffectCodec.decode(c.getString(2).orEmpty())
+                val (decoded, effect) = EffectCodec.decode(c.getString(2).orEmpty())
+                val body = MessageFormat.decodeReply(decoded).second
                 latest[threadId] = Conversation(
                     threadId = threadId,
                     address = address,
@@ -60,7 +61,7 @@ class SmsRepository(private val context: Context) {
     fun messages(threadId: Long, store: ChattyStore): List<Message> {
         val projection = arrayOf(
             Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE,
-            Telephony.Sms.TYPE, Telephony.Sms.READ, Telephony.Sms.STATUS,
+            Telephony.Sms.TYPE, Telephony.Sms.READ, Telephony.Sms.STATUS, Telephony.Sms.SUBSCRIPTION_ID,
         )
         val out = ArrayList<Message>()
         resolver.query(
@@ -72,7 +73,8 @@ class SmsRepository(private val context: Context) {
                 val type = c.getInt(4)
                 if (type == Telephony.Sms.MESSAGE_TYPE_DRAFT) continue
                 val id = c.getLong(0)
-                val (body, effect) = EffectCodec.decode(c.getString(2).orEmpty())
+                val (decoded, effect) = EffectCodec.decode(c.getString(2).orEmpty())
+                val (quote, body) = MessageFormat.decodeReply(decoded)
                 val status = when (type) {
                     Telephony.Sms.MESSAGE_TYPE_INBOX -> MessageStatus.RECEIVED
                     Telephony.Sms.MESSAGE_TYPE_OUTBOX, Telephony.Sms.MESSAGE_TYPE_QUEUED -> MessageStatus.SENDING
@@ -89,12 +91,42 @@ class SmsRepository(private val context: Context) {
                     isMine = type != Telephony.Sms.MESSAGE_TYPE_INBOX,
                     status = status,
                     read = c.getInt(5) != 0,
-                    reaction = store.reaction(id),
+                    reactions = listOfNotNull(store.reaction(id)?.let { Reaction(it, true) }),
                     starred = store.isStarred(id),
+                    quote = quote,
+                    subId = c.getInt(7),
                 )
             }
         }
-        return out
+        return attachReactions(out)
+    }
+
+    /**
+     * Les réactions reçues par SMS (« A réagi avec ❤️ à « … » », Tapback iPhone…) sont
+     * rattachées au message visé au lieu d'apparaître comme des messages à part.
+     */
+    private fun attachReactions(raw: List<Message>): List<Message> {
+        val visible = ArrayList<Message>(raw.size)
+        for (m in raw) {
+            val r = MessageFormat.parseReaction(m.body)
+            if (r != null) {
+                val idx = visible.indexOfLast { MessageFormat.matches(r.target, it.body) }
+                if (idx >= 0) {
+                    val target = visible[idx]
+                    // Une seule réaction par personne et par message.
+                    val others = target.reactions.filterNot { it.mine == m.isMine }
+                    val mineBefore = target.reactions.filter { it.mine == m.isMine }
+                    val updated = when {
+                        !r.removed -> others + Reaction(r.emoji, m.isMine)
+                        else -> others + mineBefore.filterNot { it.emoji == r.emoji }
+                    }
+                    visible[idx] = target.copy(reactions = updated)
+                    continue
+                }
+            }
+            visible += m
+        }
+        return visible
     }
 
     /** Recherche plein texte dans tous les messages. */
@@ -111,7 +143,8 @@ class SmsRepository(private val context: Context) {
             "${Telephony.Sms.DATE} DESC",
         )?.use { c ->
             while (c.moveToNext() && out.size < limit) {
-                val (body, effect) = EffectCodec.decode(c.getString(3).orEmpty())
+                val (decoded, effect) = EffectCodec.decode(c.getString(3).orEmpty())
+                val body = MessageFormat.decodeReply(decoded).second
                 val mine = c.getInt(5) != Telephony.Sms.MESSAGE_TYPE_INBOX
                 out += Message(
                     id = c.getLong(0), threadId = c.getLong(1), address = c.getString(2).orEmpty(),
@@ -121,6 +154,14 @@ class SmsRepository(private val context: Context) {
             }
         }
         return out
+    }
+
+    fun latestIncomingBody(threadId: Long): String? {
+        resolver.query(
+            Telephony.Sms.Inbox.CONTENT_URI, arrayOf(Telephony.Sms.BODY),
+            "${Telephony.Sms.THREAD_ID} = ?", arrayOf(threadId.toString()), "${Telephony.Sms.DATE} DESC",
+        )?.use { c -> if (c.moveToFirst()) return EffectCodec.decode(c.getString(0).orEmpty()).first }
+        return null
     }
 
     fun threadIdFor(address: String): Long = Telephony.Threads.getOrCreateThreadId(context, address)
@@ -174,7 +215,7 @@ class SmsRepository(private val context: Context) {
         return runCatching { resolver.insert(Telephony.Sms.Inbox.CONTENT_URI, values) }.getOrNull()
     }
 
-    fun insertOutbox(address: String, body: String, threadId: Long): Uri? {
+    fun insertOutbox(address: String, body: String, threadId: Long, subId: Int = -1): Uri? {
         val values = ContentValues().apply {
             put(Telephony.Sms.ADDRESS, address)
             put(Telephony.Sms.BODY, body)
@@ -184,6 +225,7 @@ class SmsRepository(private val context: Context) {
             put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_OUTBOX)
             put(Telephony.Sms.STATUS, Telephony.Sms.STATUS_PENDING)
             if (threadId > 0) put(Telephony.Sms.THREAD_ID, threadId)
+            if (subId >= 0) put(Telephony.Sms.SUBSCRIPTION_ID, subId)
         }
         return runCatching { resolver.insert(Telephony.Sms.CONTENT_URI, values) }.getOrNull()
     }
@@ -207,7 +249,11 @@ class SmsRepository(private val context: Context) {
         return null
     }
 
-    fun contact(address: String): Contact = contactCache.getOrPut(address) { lookupContact(address) }
+    fun contact(address: String): Contact {
+        val base = contactCache.getOrPut(address) { lookupContact(address) }
+        val nick = ChattyStore.get(context).nickname(address)
+        return if (nick != null) base.copy(name = nick) else base
+    }
 
     fun clearContactCache() = contactCache.clear()
 

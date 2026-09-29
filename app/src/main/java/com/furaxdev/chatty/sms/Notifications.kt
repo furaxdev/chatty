@@ -76,13 +76,28 @@ object Notifications {
         val unread = repo.messages(threadId, ChattyStore.get(context))
             .filter { !it.isMine && !it.read }
             .takeLast(6)
-        if (unread.isEmpty()) return
+        if (unread.isEmpty()) {
+            // Réaction reçue : elle est rattachée à un message, on l'annonce simplement.
+            val latest = repo.latestIncomingBody(threadId) ?: return
+            val r = com.furaxdev.chatty.data.MessageFormat.parseReaction(latest) ?: return
+            if (r.removed) return
+            val n = NotificationCompat.Builder(context, CHANNEL_MESSAGES)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(contact.displayName)
+                .setContentText("A réagi ${r.emoji} à « ${r.target} »")
+                .setContentIntent(openIntent(context, threadId, address))
+                .setAutoCancel(true)
+                .build()
+            try { NotificationManagerCompat.from(context).notify(threadId.toInt(), n) } catch (_: SecurityException) {}
+            return
+        }
 
         val me = Person.Builder().setName("Moi").build()
         val sender = Person.Builder().setName(contact.displayName).setKey(address).build()
         val style = NotificationCompat.MessagingStyle(me)
         unread.forEach { msg ->
             val text = msg.effect?.let { "${msg.body}  ${it.emoji}" } ?: msg.body
+            if (msg.quote != null) style.addMessage("↪ ${msg.quote}", msg.date, sender)
             style.addMessage(text, msg.date, sender)
         }
 

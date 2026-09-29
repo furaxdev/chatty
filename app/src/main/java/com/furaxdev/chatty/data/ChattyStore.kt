@@ -53,6 +53,36 @@ class ChattyStore private constructor(context: Context) {
         prefs.edit { if (text.isBlank()) remove("draft_$threadId") else putString("draft_$threadId", text) }
     }
 
+    /** Couleur de bulle propre à une conversation (sinon la couleur globale). */
+    fun colorFor(threadId: Long): Int = prefs.getInt("color_$threadId", bubbleColor)
+    fun hasCustomColor(threadId: Long) = prefs.contains("color_$threadId")
+    fun setColorFor(threadId: Long, index: Int?) {
+        prefs.edit { if (index == null) remove("color_$threadId") else putInt("color_$threadId", index) }
+        bump()
+    }
+
+    /** Surnom donné à un contact dans Chatty. */
+    fun nickname(address: String): String? = prefs.getString("nick_$address", null)
+    fun setNickname(address: String, name: String?) {
+        prefs.edit { if (name.isNullOrBlank()) remove("nick_$address") else putString("nick_$address", name.trim()) }
+        bump()
+    }
+
+    /** SIM choisie pour une conversation (-1 = SIM par défaut du téléphone). */
+    fun simFor(threadId: Long): Int = prefs.getInt("sim_$threadId", -1)
+    fun setSim(threadId: Long, subId: Int) {
+        prefs.edit { if (subId < 0) remove("sim_$threadId") else putInt("sim_$threadId", subId) }
+        bump()
+    }
+
+    fun recentEmojis(): List<String> =
+        prefs.getString("recent_emojis", "")!!.split('\u0001').filter { it.isNotEmpty() }
+
+    fun pushRecentEmoji(emoji: String) {
+        val list = (listOf(emoji) + recentEmojis().filterNot { it == emoji }).take(24)
+        prefs.edit { putString("recent_emojis", list.joinToString("\u0001")) }
+    }
+
     // --- Envois programmés ---
 
     fun scheduled(): List<ScheduledMessage> {
@@ -109,6 +139,16 @@ class ChattyStore private constructor(context: Context) {
     var haptics: Boolean
         get() = prefs.getBoolean("haptics", true)
         set(value) { prefs.edit { putBoolean("haptics", value) }; bump() }
+
+    /** Envoie les réactions par SMS (« A réagi avec ❤️ à … »), comme Google Messages. */
+    var sendReactions: Boolean
+        get() = prefs.getBoolean("send_reactions", true)
+        set(value) { prefs.edit { putBoolean("send_reactions", value) }; bump() }
+
+    /** Délai pendant lequel on peut annuler un envoi (0 = désactivé). */
+    var undoDelaySeconds: Int
+        get() = prefs.getInt("undo_delay", 0)
+        set(value) { prefs.edit { putInt("undo_delay", value) }; bump() }
 
     var signature: String
         get() = prefs.getString("signature", "").orEmpty()

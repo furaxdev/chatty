@@ -19,9 +19,13 @@ object SmsSender {
     const val EXTRA_PART = "part"
     const val EXTRA_PARTS = "parts"
 
-    private fun smsManager(context: Context): SmsManager =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getSystemService(SmsManager::class.java)
+    private fun smsManager(context: Context, subId: Int = -1): SmsManager {
+        val base = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getSystemService(SmsManager::class.java)
         else @Suppress("DEPRECATION") SmsManager.getDefault()
+        if (subId < 0) return base
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) base.createForSubscriptionId(subId)
+        else @Suppress("DEPRECATION") SmsManager.getSmsManagerForSubscriptionId(subId)
+    }
 
     /** Découpage du texte (pour afficher « 2 SMS · 45 restants » dans la zone de saisie). */
     fun segments(text: String): IntArray = android.telephony.SmsMessage.calculateLength(text, false)
@@ -30,15 +34,23 @@ object SmsSender {
      * Enregistre le message dans la boîte d'envoi puis l'envoie.
      * Renvoie l'identifiant du fil de discussion.
      */
-    fun send(context: Context, address: String, text: String, effect: MessageEffect? = null, threadIdHint: Long = 0L): Long {
+    fun send(
+        context: Context,
+        address: String,
+        text: String,
+        effect: MessageEffect? = null,
+        threadIdHint: Long = 0L,
+        withSignature: Boolean = true,
+        subId: Int = -1,
+    ): Long {
         val repo = SmsRepository(context)
         val store = ChattyStore.get(context)
-        val signature = store.signature.trim()
+        val signature = if (withSignature) store.signature.trim() else ""
         val withSig = if (signature.isNotEmpty()) "$text\n$signature" else text
         val body = EffectCodec.encode(withSig, effect)
         val threadId = if (threadIdHint > 0) threadIdHint else repo.threadIdFor(address)
-        val uri = repo.insertOutbox(address, body, threadId) ?: return threadId
-        transmit(context, uri, address, body, store.deliveryReports)
+        val uri = repo.insertOutbox(address, body, threadId, subId) ?: return threadId
+        transmit(context, uri, address, body, store.deliveryReports, subId)
         return threadId
     }
 
@@ -51,8 +63,8 @@ object SmsSender {
         transmit(context, uri, address, body, ChattyStore.get(context).deliveryReports)
     }
 
-    private fun transmit(context: Context, uri: android.net.Uri, address: String, body: String, reports: Boolean) {
-        val manager = smsManager(context)
+    private fun transmit(context: Context, uri: android.net.Uri, address: String, body: String, reports: Boolean, subId: Int = -1) {
+        val manager = smsManager(context, subId)
         val parts = manager.divideMessage(body)
         val sent = ArrayList<PendingIntent>()
         val delivered = ArrayList<PendingIntent>()
