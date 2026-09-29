@@ -21,6 +21,7 @@ import com.furaxdev.chatty.data.SmsRepository
 object Notifications {
     const val CHANNEL_MESSAGES = "messages"
     const val CHANNEL_ALERTS = "alerts"
+    const val CHANNEL_REMINDERS = "reminders"
     const val ACTION_REPLY = "com.furaxdev.chatty.REPLY"
     const val ACTION_MARK_READ = "com.furaxdev.chatty.MARK_READ"
     const val EXTRA_THREAD_ID = "thread_id"
@@ -32,6 +33,11 @@ object Notifications {
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_MESSAGES, "Messages", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Nouveaux SMS reçus"
+            }
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_REMINDERS, "Rappels", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Rappels « Me le rappeler » sur des messages"
             }
         )
         nm.createNotificationChannel(
@@ -95,10 +101,15 @@ object Notifications {
         val me = Person.Builder().setName("Moi").build()
         val sender = Person.Builder().setName(contact.displayName).setKey(address).build()
         val style = NotificationCompat.MessagingStyle(me)
+        val hidden = ChattyStore.get(context).privateNotifications
         unread.forEach { msg ->
             val text = msg.effect?.let { "${msg.body}  ${it.emoji}" } ?: msg.body
-            if (msg.quote != null) style.addMessage("↪ ${msg.quote}", msg.date, sender)
-            style.addMessage(text, msg.date, sender)
+            if (hidden) {
+                style.addMessage("Nouveau message", msg.date, sender)
+            } else {
+                if (msg.quote != null) style.addMessage("↪ ${msg.quote}", msg.date, sender)
+                style.addMessage(text, msg.date, sender)
+            }
         }
 
         val replyAction = NotificationCompat.Action.Builder(

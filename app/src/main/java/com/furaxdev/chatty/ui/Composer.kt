@@ -247,7 +247,7 @@ fun Composer(
 /** Choix de l'heure d'envoi (raccourcis + date/heure libre). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScheduleDialog(onPick: (Long) -> Unit, onDismiss: () -> Unit) {
+fun ScheduleDialog(onPick: (Long) -> Unit, onDismiss: () -> Unit, title: String = "Programmer l'envoi") {
     var step by remember { mutableIntStateOf(0) } // 0 = raccourcis, 1 = date, 2 = heure
     var pickedDay by remember { mutableStateOf<Long?>(null) }
 
@@ -260,6 +260,7 @@ fun ScheduleDialog(onPick: (Long) -> Unit, onDismiss: () -> Unit) {
         0 -> {
             val now = System.currentTimeMillis()
             val options = buildList {
+                if (now + 3_600_000 < at(0, 23)) add("Dans 1 heure" to now + 3_600_000)
                 if (at(0, 18) > now) add("Plus tard aujourd'hui" to at(0, 18))
                 if (at(0, 21) > now) add("Ce soir" to at(0, 21))
                 add("Demain matin" to at(1, 8))
@@ -267,7 +268,7 @@ fun ScheduleDialog(onPick: (Long) -> Unit, onDismiss: () -> Unit) {
             }
             AlertDialog(
                 onDismissRequest = onDismiss,
-                title = { Text("Programmer l'envoi") },
+                title = { Text(title) },
                 text = {
                     Column {
                         options.forEach { (label, time) ->

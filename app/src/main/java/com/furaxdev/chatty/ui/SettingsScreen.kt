@@ -48,7 +48,7 @@ import com.furaxdev.chatty.ui.theme.BubblePalette
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(store: ChattyStore, onBack: () -> Unit) {
+fun SettingsScreen(store: ChattyStore, onBack: () -> Unit, onBlocked: () -> Unit = {}, lockAvailable: Boolean = false) {
     val version by store.version.collectAsState()
     var signature by remember { mutableStateOf(store.signature) }
     val latestSignature by androidx.compose.runtime.rememberUpdatedState(signature)
@@ -140,6 +140,21 @@ fun SettingsScreen(store: ChattyStore, onBack: () -> Unit) {
                     label = { Text("Signature (ajoutée à chaque message)") },
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     singleLine = true,
+                )
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Section("Confidentialité")
+                if (lockAvailable) {
+                    Toggle("Verrouiller Chatty", "Empreinte, visage ou code du téléphone à l'ouverture", store.appLock) { store.appLock = it }
+                }
+                Toggle(
+                    "Notifications discrètes",
+                    "Affiche « Nouveau message » sans le contenu",
+                    store.privateNotifications,
+                ) { store.privateNotifications = it }
+                ListItem(
+                    headlineContent = { Text("Numéros bloqués") },
+                    supportingContent = { Text("Gérer les numéros bloqués") },
+                    modifier = Modifier.clickable(onClick = onBlocked),
                 )
                 ListItem(
                     headlineContent = { Text("Chatty") },

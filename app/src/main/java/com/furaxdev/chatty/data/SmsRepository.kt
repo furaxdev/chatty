@@ -129,6 +129,33 @@ class SmsRepository(private val context: Context) {
         return visible
     }
 
+    /** Messages par identifiant (favoris). */
+    fun messagesByIds(ids: Collection<Long>): List<Message> {
+        if (ids.isEmpty()) return emptyList()
+        val projection = arrayOf(
+            Telephony.Sms._ID, Telephony.Sms.THREAD_ID, Telephony.Sms.ADDRESS,
+            Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms.TYPE,
+        )
+        val out = ArrayList<Message>()
+        resolver.query(
+            Telephony.Sms.CONTENT_URI, projection,
+            "${Telephony.Sms._ID} IN (${ids.joinToString(",")})", null, "${Telephony.Sms.DATE} DESC",
+        )?.use { c ->
+            while (c.moveToNext()) {
+                val (decoded, effect) = EffectCodec.decode(c.getString(3).orEmpty())
+                val (quote, body) = MessageFormat.decodeReply(decoded)
+                val mine = c.getInt(5) != Telephony.Sms.MESSAGE_TYPE_INBOX
+                out += Message(
+                    id = c.getLong(0), threadId = c.getLong(1), address = c.getString(2).orEmpty(),
+                    body = body, effect = effect, date = c.getLong(4), isMine = mine,
+                    status = if (mine) MessageStatus.SENT else MessageStatus.RECEIVED, read = true,
+                    starred = true, quote = quote,
+                )
+            }
+        }
+        return out
+    }
+
     /** Recherche plein texte dans tous les messages. */
     fun search(query: String, limit: Int = 50): List<Message> {
         if (query.isBlank()) return emptyList()

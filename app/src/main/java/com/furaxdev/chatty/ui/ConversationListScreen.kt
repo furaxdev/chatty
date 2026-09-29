@@ -34,8 +34,10 @@ import androidx.compose.material.icons.filled.MarkChatUnread
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
@@ -88,6 +90,8 @@ fun ConversationListScreen(
     onArchived: () -> Unit,
     onSettings: () -> Unit,
     onBack: () -> Unit,
+    onStarred: () -> Unit = {},
+    onScheduled: () -> Unit = {},
 ) {
     val all by vm.conversations.collectAsState()
     val loaded by vm.loaded.collectAsState()
@@ -160,6 +164,16 @@ fun ConversationListScreen(
                                     text = { Text("Archives" + if (archivedCount > 0) " ($archivedCount)" else "") },
                                     leadingIcon = { Icon(Icons.Default.Archive, null) },
                                     onClick = { menu = false; onArchived() },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Messages favoris") },
+                                    leadingIcon = { Icon(Icons.Default.Star, null) },
+                                    onClick = { menu = false; onStarred() },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Messages programmés") },
+                                    leadingIcon = { Icon(Icons.Default.Schedule, null) },
+                                    onClick = { menu = false; onScheduled() },
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Paramètres") },

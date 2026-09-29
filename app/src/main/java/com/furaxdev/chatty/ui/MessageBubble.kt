@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
@@ -385,6 +386,7 @@ fun MessageSheet(
     onReplay: () -> Unit,
     onRetry: () -> Unit,
     onDetails: () -> Unit,
+    onRemind: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -415,6 +417,7 @@ fun MessageSheet(
         )
         message.effect?.let { effect -> SheetItem("Rejouer l'effet « ${effect.label} »", Icons.Default.Replay, onReplay) }
         if (message.status == MessageStatus.FAILED) SheetItem("Réessayer l'envoi", Icons.Default.Refresh, onRetry)
+        SheetItem("Me le rappeler", Icons.Default.Alarm, onRemind)
         SheetItem("Détails", Icons.Default.Info, onDetails)
         ListItem(
             headlineContent = { Text("Supprimer", color = MaterialTheme.colorScheme.error) },

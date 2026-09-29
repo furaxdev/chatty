@@ -8,6 +8,7 @@ import android.provider.ContactsContract
 import android.provider.Telephony
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.furaxdev.chatty.data.Blocking
 import com.furaxdev.chatty.data.ChattyStore
 import com.furaxdev.chatty.data.Contact
 import com.furaxdev.chatty.data.Conversation
@@ -17,6 +18,7 @@ import com.furaxdev.chatty.data.ScheduledMessage
 import com.furaxdev.chatty.data.SmsRepository
 import com.furaxdev.chatty.effects.MessageEffect
 import com.furaxdev.chatty.sms.Notifications
+import com.furaxdev.chatty.sms.ReminderWorker
 import com.furaxdev.chatty.sms.ScheduledSendWorker
 import com.furaxdev.chatty.sms.SmsSender
 import kotlinx.coroutines.Dispatchers
@@ -206,6 +208,24 @@ class ChattyViewModel(app: Application) : AndroidViewModel(app) {
 
     fun markRead(threadId: Long) = viewModelScope.launch(Dispatchers.IO) { repo.markThreadRead(threadId) }
     fun markUnread(threadId: Long) = viewModelScope.launch(Dispatchers.IO) { repo.markThreadUnread(threadId) }
+
+    suspend fun starredMessages() = withContext(Dispatchers.IO) { repo.messagesByIds(store.starredIds()) }
+
+    suspend fun allMessages(threadId: Long) = withContext(Dispatchers.IO) { repo.messages(threadId, store) }
+
+    fun remind(message: Message, address: String, at: Long) {
+        ReminderWorker.schedule(getApplication(), message.threadId, address, contact(address).displayName, message.body, at)
+    }
+
+    fun block(address: String, threadId: Long): Boolean {
+        val ok = Blocking.block(getApplication(), address)
+        if (ok) store.setArchived(threadId, true)
+        return ok
+    }
+
+    fun unblock(address: String) = Blocking.unblock(getApplication(), address)
+    fun isBlocked(address: String) = Blocking.isBlocked(getApplication(), address)
+    fun blockedNumbers() = Blocking.list(getApplication())
 
     suspend fun searchMessages(query: String) = withContext(Dispatchers.IO) { repo.search(query) }
     suspend fun searchContacts(query: String) = withContext(Dispatchers.IO) { repo.searchContacts(query) }

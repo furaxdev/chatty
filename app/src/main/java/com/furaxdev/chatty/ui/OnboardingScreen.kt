@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -88,5 +89,22 @@ private fun Feature(emoji: String, text: String) {
         Text(emoji, fontSize = 22.sp)
         Spacer(Modifier.width(14.dp))
         Text(text)
+    }
+}
+
+/** Écran affiché tant que Chatty est verrouillé. */
+@Composable
+fun LockScreen(onUnlock: () -> Unit) {
+    androidx.compose.runtime.LaunchedEffect(Unit) { onUnlock() }
+    Column(
+        Modifier.fillMaxSize().systemBarsPadding().padding(32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(Icons.Default.Lock, null, Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.height(16.dp))
+        Text("Chatty est verrouillé", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(24.dp))
+        Button(onClick = onUnlock) { Text("Déverrouiller") }
     }
 }

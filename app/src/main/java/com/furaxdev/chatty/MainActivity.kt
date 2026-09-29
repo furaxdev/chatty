@@ -6,12 +6,15 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -32,7 +35,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.furaxdev.chatty.data.Contact
 import com.furaxdev.chatty.sms.Notifications
+import com.furaxdev.chatty.ui.BlockedScreen
 import com.furaxdev.chatty.ui.BroadcastScreen
+import com.furaxdev.chatty.ui.ConversationDetailsScreen
+import com.furaxdev.chatty.ui.LockScreen
+import com.furaxdev.chatty.ui.ScheduledScreen
+import com.furaxdev.chatty.ui.StarredScreen
 import com.furaxdev.chatty.ui.ChatScreen
 import com.furaxdev.chatty.ui.ConversationListScreen
 import com.furaxdev.chatty.ui.NewConversationScreen
@@ -49,12 +57,44 @@ sealed interface Screen {
     data class New(val text: String? = null) : Screen
     data class Chat(val threadId: Long, val address: String, val text: String? = null) : Screen
     data class Broadcast(val recipients: List<Contact>, val text: String?) : Screen
+    data class Details(val threadId: Long, val address: String) : Screen
+    data object Starred : Screen
+    data object Scheduled : Screen
+    data object Blocked : Screen
 }
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private val vm: ChattyViewModel by viewModels()
     private val isDefault = mutableStateOf(false)
+    private val unlocked = mutableStateOf(false)
+    private var prompting = false
+
+    private val authenticators = BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+
+    private fun lockAvailable() =
+        BiometricManager.from(this).canAuthenticate(authenticators) == BiometricManager.BIOMETRIC_SUCCESS
+
+    private fun needsUnlock() = vm.store.appLock && lockAvailable() && !unlocked.value
+
+    private fun promptUnlock() {
+        if (prompting || !needsUnlock()) return
+        prompting = true
+        val prompt = BiometricPrompt(this, ContextCompat.getMainExecutor(this), object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                prompting = false
+                unlocked.value = true
+            }
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) { prompting = false }
+        })
+        prompt.authenticate(
+            BiometricPrompt.PromptInfo.Builder()
+                .setTitle("Déverrouiller Chatty")
+                .setSubtitle("Vos messages sont protégés")
+                .setAllowedAuthenticators(authenticators)
+                .build()
+        )
+    }
     private val pendingIntent = MutableStateFlow<Intent?>(null)
 
     private val roleRequest = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
@@ -79,7 +119,11 @@ class MainActivity : ComponentActivity() {
             val version by vm.store.version.collectAsState()
             ChattyTheme(dynamicColor = vm.store.dynamicColor.also { version }) {
                 Surface(Modifier.fillMaxSize()) {
-                    if (isDefault.value) App() else OnboardingScreen(onMakeDefault = ::requestRole)
+                    when {
+                        !isDefault.value -> OnboardingScreen(onMakeDefault = ::requestRole)
+                        vm.store.appLock.also { version } && lockAvailable() && !unlocked.value -> LockScreen(::promptUnlock)
+                        else -> App()
+                    }
                 }
             }
         }
@@ -90,8 +134,15 @@ class MainActivity : ComponentActivity() {
         pendingIntent.value = intent
     }
 
+    override fun onStop() {
+        super.onStop()
+        // Reverrouille dès qu'on quitte l'appli (sauf pendant une demande système).
+        if (!isChangingConfigurations && !prompting) unlocked.value = false
+    }
+
     override fun onResume() {
         super.onResume()
+        if (needsUnlock()) promptUnlock()
         val was = isDefault.value
         checkRole()
         if (isDefault.value) vm.start() else if (was) vm.refresh()
@@ -129,7 +180,7 @@ class MainActivity : ComponentActivity() {
             scope.launch {
                 val id = threadId ?: vm.threadIdFor(address)
                 // Évite d'empiler deux fois la même conversation.
-                stack.removeAll { it is Screen.Chat || it is Screen.New || it is Screen.Broadcast }
+                stack.removeAll { it !is Screen.Inbox && it !is Screen.Archived }
                 push(Screen.Chat(id, address, text))
             }
         }
@@ -163,8 +214,22 @@ class MainActivity : ComponentActivity() {
                     onArchived = { push(Screen.Archived) },
                     onSettings = { push(Screen.Settings) },
                     onBack = ::pop,
+                    onStarred = { push(Screen.Starred) },
+                    onScheduled = { push(Screen.Scheduled) },
                 )
-                Screen.Settings -> SettingsScreen(vm.store, onBack = ::pop)
+                Screen.Settings -> SettingsScreen(
+                    vm.store, onBack = ::pop,
+                    onBlocked = { push(Screen.Blocked) },
+                    lockAvailable = lockAvailable(),
+                )
+                Screen.Starred -> StarredScreen(vm, onOpen = { openChat(it.address, it.threadId) }, onBack = ::pop)
+                Screen.Scheduled -> ScheduledScreen(vm, onOpen = { openChat(it.address, it.threadId) }, onBack = ::pop)
+                Screen.Blocked -> BlockedScreen(vm, onBack = ::pop)
+                is Screen.Details -> ConversationDetailsScreen(
+                    vm, screen.threadId, screen.address,
+                    onBack = ::pop,
+                    onDeleted = { goingBack = true; stack.removeAll { it !is Screen.Inbox } },
+                )
                 is Screen.New -> NewConversationScreen(
                     vm = vm,
                     onBack = ::pop,
@@ -179,6 +244,7 @@ class MainActivity : ComponentActivity() {
                     address = screen.address,
                     initialText = screen.text,
                     onBack = ::pop,
+                    onDetails = { push(Screen.Details(screen.threadId, screen.address)) },
                 )
                 is Screen.Broadcast -> BroadcastScreen(
                     vm = vm,

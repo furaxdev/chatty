@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
@@ -106,6 +108,7 @@ fun ChatScreen(
     address: String,
     initialText: String?,
     onBack: () -> Unit,
+    onDetails: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
@@ -170,6 +173,7 @@ fun ChatScreen(
     var plannedAction by remember { mutableStateOf<ScheduledMessage?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
     var simPicker by remember { mutableStateOf(false) }
+    var remindOf by remember { mutableStateOf<Message?>(null) }
     var menu by remember { mutableStateOf(false) }
 
     fun send(effect: MessageEffect?, overrideText: String? = null) {
@@ -209,7 +213,10 @@ fun ChatScreen(
                         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour") }
                     },
                     title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            Modifier.clickable(onClick = onDetails),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
                             Avatar(contact, 38.dp)
                             Spacer(Modifier.width(12.dp))
                             Column {
@@ -230,6 +237,11 @@ fun ChatScreen(
                                 val pinned = conv?.pinned == true
                                 val muted = conv?.muted == true
                                 val archived = conv?.archived == true
+                                DropdownMenuItem(
+                                    text = { Text("Détails") },
+                                    leadingIcon = { Icon(Icons.Default.Info, null) },
+                                    onClick = { menu = false; onDetails() },
+                                )
                                 DropdownMenuItem(
                                     text = { Text(if (pinned) "Désépingler" else "Épingler") },
                                     leadingIcon = { Icon(Icons.Default.PushPin, null) },
@@ -407,8 +419,21 @@ fun ChatScreen(
             onReplay = { play(m); selected = null },
             onRetry = { vm.retry(m.id); selected = null },
             onDetails = { detailsOf = m; selected = null },
+            onRemind = { remindOf = m; selected = null },
             onDelete = { vm.deleteMessage(m.id); selected = null },
             onDismiss = { selected = null },
+        )
+    }
+
+    remindOf?.let { m ->
+        ScheduleDialog(
+            title = "Me le rappeler",
+            onPick = { at ->
+                vm.remind(m, address, at)
+                remindOf = null
+                Toast.makeText(context, "Rappel ${formatScheduled(at)}", Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = { remindOf = null },
         )
     }
 

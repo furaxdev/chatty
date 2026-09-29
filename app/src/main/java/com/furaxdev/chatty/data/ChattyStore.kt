@@ -42,6 +42,8 @@ class ChattyStore private constructor(context: Context) {
     fun isStarred(messageId: Long) = messageId in ids("starred")
     fun setStarred(messageId: Long, on: Boolean) = toggle("starred", messageId, on)
 
+    fun starredIds(): Set<Long> = ids("starred")
+
     fun reaction(messageId: Long): String? = prefs.getString("reaction_$messageId", null)
     fun setReaction(messageId: Long, emoji: String?) {
         prefs.edit { if (emoji == null) remove("reaction_$messageId") else putString("reaction_$messageId", emoji) }
@@ -149,6 +151,16 @@ class ChattyStore private constructor(context: Context) {
     var undoDelaySeconds: Int
         get() = prefs.getInt("undo_delay", 0)
         set(value) { prefs.edit { putInt("undo_delay", value) }; bump() }
+
+    /** Verrouillage de l'appli par empreinte / code du téléphone. */
+    var appLock: Boolean
+        get() = prefs.getBoolean("app_lock", false)
+        set(value) { prefs.edit { putBoolean("app_lock", value) }; bump() }
+
+    /** Masque le contenu des messages dans les notifications. */
+    var privateNotifications: Boolean
+        get() = prefs.getBoolean("private_notifications", false)
+        set(value) { prefs.edit { putBoolean("private_notifications", value) }; bump() }
 
     var signature: String
         get() = prefs.getString("signature", "").orEmpty()
