@@ -20,10 +20,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.text.TextMeasurer
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.sp
 import kotlin.math.PI
 import kotlin.math.cos
@@ -51,7 +47,6 @@ fun ScreenEffectOverlay(effect: MessageEffect, text: String, onFinished: () -> U
         onFinished()
     }
     val seed = remember(effect) { Random.nextInt() }
-    val measurer = rememberTextMeasurer()
 
     Box(Modifier.fillMaxSize()) {
         Canvas(Modifier.fillMaxSize()) {
@@ -60,16 +55,16 @@ fun ScreenEffectOverlay(effect: MessageEffect, text: String, onFinished: () -> U
             when (effect) {
                 MessageEffect.CONFETTI -> confetti(t, rnd)
                 MessageEffect.BALLOONS -> balloons(t, rnd)
-                MessageEffect.LOVE -> love(t, rnd, measurer)
+                MessageEffect.LOVE -> love(t, rnd)
                 MessageEffect.FIREWORKS -> fireworks(t, rnd)
                 MessageEffect.LASERS -> lasers(t)
                 MessageEffect.CELEBRATION -> celebration(t, rnd)
                 MessageEffect.SPOTLIGHT -> spotlight(t)
-                MessageEffect.ECHO -> echo(t, rnd, measurer, text)
+                MessageEffect.ECHO -> echo(t, rnd, text)
                 MessageEffect.SNOW -> snow(t, rnd)
-                MessageEffect.EMOJI_RAIN -> emojiRain(t, rnd, measurer, text)
+                MessageEffect.EMOJI_RAIN -> emojiRain(t, rnd, text)
                 MessageEffect.RAINBOW -> rainbow(t)
-                MessageEffect.MONEY -> money(t, rnd, measurer)
+                MessageEffect.MONEY -> money(t, rnd)
                 MessageEffect.SHOOTING_STARS -> shootingStars(t, rnd)
                 else -> Unit
             }
@@ -130,8 +125,7 @@ private fun DrawScope.balloons(t: Float, rnd: Random) {
     }
 }
 
-private fun DrawScope.love(t: Float, rnd: Random, measurer: TextMeasurer) {
-    // Un grand cœur qui grossit et bat au centre, entouré de petits cœurs.
+private fun DrawScope.love(t: Float, rnd: Random) {
     val center = Offset(size.width / 2, size.height / 2)
     val beat = 1f + 0.08f * sin(t * 2 * PI.toFloat() * 4)
     val scale = (t / 0.25f).coerceAtMost(1f) * beat
@@ -139,9 +133,9 @@ private fun DrawScope.love(t: Float, rnd: Random, measurer: TextMeasurer) {
     drawHeart(center, size.minDimension * 0.28f * scale, Color(0xFFFF4D6D).copy(alpha = alpha))
     repeat(18) {
         val angle = rnd.nextFloat() * 2 * PI.toFloat()
-        val dist = (t * size.minDimension * (0.5f + rnd.nextFloat() * 0.4f))
+        val dist = t * size.minDimension * (0.5f + rnd.nextFloat() * 0.4f)
         val p = center + Offset(cos(angle) * dist, sin(angle) * dist)
-        drawText(measurer, "💕", p, TextStyle(fontSize = 22.sp, color = Color.Black.copy(alpha = alpha)))
+        drawCircle(Color(0xFFFFA0B5).copy(alpha = alpha), 5f, p)
     }
 }
 
