@@ -13,16 +13,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -56,11 +53,7 @@ fun ScreenEffectOverlay(effect: MessageEffect, text: String, onFinished: () -> U
     val seed = remember(effect) { Random.nextInt() }
     val measurer = rememberTextMeasurer()
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-    ) {
+    Box(Modifier.fillMaxSize()) {
         Canvas(Modifier.fillMaxSize()) {
             val t = progress.value
             val rnd = Random(seed)
@@ -250,8 +243,13 @@ private fun DrawScope.spotlight(t: Float) {
     val center = sweep + (target - sweep) * settle
     drawRect(Color.Black.copy(alpha = 0.85f * alpha))
     drawCircle(
-        Brush.radialGradient(listOf(Color.Black, Color.Black, Color.Transparent), center, 260f),
-        260f, center, blendMode = BlendMode.DstOut,
+        Brush.radialGradient(
+            listOf(Color.Transparent, Color.Black.copy(alpha = 0.92f)),
+            center,
+            260f,
+        ),
+        260f,
+        center,
     )
 }
 

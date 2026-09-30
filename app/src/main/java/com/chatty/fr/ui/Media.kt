@@ -57,6 +57,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.chatty.fr.data.Attachment
 import com.chatty.fr.mms.MediaUtils
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -64,7 +65,16 @@ import kotlinx.coroutines.withContext
 fun rememberBitmap(uri: String, targetPx: Int): ImageBitmap? {
     val context = LocalContext.current
     val bitmap by produceState<ImageBitmap?>(null, uri, targetPx) {
-        value = withContext(Dispatchers.IO) { MediaUtils.loadThumbnail(context, Uri.parse(uri), targetPx)?.asImageBitmap() }
+        value = try {
+            withContext(Dispatchers.IO) {
+                runCatching { MediaUtils.loadThumbnail(context, Uri.parse(uri), targetPx)?.asImageBitmap() }
+                    .getOrNull()
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
     }
     return bitmap
 }
@@ -179,11 +189,15 @@ fun ImageViewer(attachment: Attachment, onClose: () -> Unit) {
                 else saveToGallery(context, attachment)
             }) { Icon(Icons.Default.Download, "Enregistrer", tint = Color.White) }
             IconButton(onClick = {
-                context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                runCatching {
+                    context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
                     type = attachment.contentType
                     putExtra(Intent.EXTRA_STREAM, shareableUri(context, attachment) ?: Uri.parse(attachment.uri))
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }, "Partager la photo"))
+                }.onFailure {
+                    Toast.makeText(context, "Impossible de partager la photo", Toast.LENGTH_SHORT).show()
+                }
             }) { Icon(Icons.Default.Share, "Partager", tint = Color.White) }
         }
     }
