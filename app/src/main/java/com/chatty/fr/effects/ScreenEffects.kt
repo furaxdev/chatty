@@ -20,7 +20,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.unit.sp
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -60,9 +59,9 @@ fun ScreenEffectOverlay(effect: MessageEffect, text: String, onFinished: () -> U
                 MessageEffect.LASERS -> lasers(t)
                 MessageEffect.CELEBRATION -> celebration(t, rnd)
                 MessageEffect.SPOTLIGHT -> spotlight(t)
-                MessageEffect.ECHO -> echo(t, rnd, text)
+                MessageEffect.ECHO -> echo(t, rnd)
                 MessageEffect.SNOW -> snow(t, rnd)
-                MessageEffect.EMOJI_RAIN -> emojiRain(t, rnd, text)
+                MessageEffect.EMOJI_RAIN -> emojiRain(t, rnd)
                 MessageEffect.RAINBOW -> rainbow(t)
                 MessageEffect.MONEY -> money(t, rnd)
                 MessageEffect.SHOOTING_STARS -> shootingStars(t, rnd)
@@ -247,20 +246,18 @@ private fun DrawScope.spotlight(t: Float) {
     )
 }
 
-private fun DrawScope.echo(t: Float, rnd: Random, measurer: TextMeasurer, text: String) {
-    val label = text.take(40).ifBlank { "👋" }
+private fun DrawScope.echo(t: Float, rnd: Random) {
     repeat(26) {
         val delay = rnd.nextFloat() * 0.6f
         val local = ((t - delay) / 0.45f).coerceIn(0f, 1f)
         if (local <= 0f || local >= 1f) return@repeat
         val y = size.height * rnd.nextFloat()
         val fromLeft = rnd.nextBoolean()
-        val x = if (fromLeft) -300f + local * (size.width + 400f) else size.width + 100f - local * (size.width + 400f)
+        val x = if (fromLeft) -80f + local * (size.width + 160f) else size.width + 80f - local * (size.width + 160f)
+        val radius = 12f + rnd.nextFloat() * 24f
         val color = Festive[rnd.nextInt(Festive.size - 1)]
-        drawText(
-            measurer, label, Offset(x, y),
-            TextStyle(fontSize = (14 + rnd.nextInt(14)).sp, color = color.copy(alpha = 0.9f)),
-        )
+        drawCircle(color.copy(alpha = 0.85f * fade(t)), radius, Offset(x, y))
+        drawCircle(Color.White.copy(alpha = 0.25f * fade(t)), radius * 0.35f, Offset(x - radius * 0.3f, y - radius * 0.3f))
     }
 }
 
@@ -275,35 +272,6 @@ private fun DrawScope.snow(t: Float, rnd: Random) {
         val y = ((offset + t * speed) % 1f) * size.height
         val x = x0 + sin(t * 8f + it) * 18f
         drawCircle(Color.White.copy(alpha = alpha * 0.9f), r, Offset(x, y))
-    }
-}
-
-/** Emojis présents dans le texte (ou 🎉 par défaut). */
-private fun emojisOf(text: String): List<String> {
-    val out = ArrayList<String>()
-    var i = 0
-    while (i < text.length) {
-        val cp = text.codePointAt(i)
-        if (Character.getType(cp) == Character.OTHER_SYMBOL.toInt()) out += String(Character.toChars(cp))
-        i += Character.charCount(cp)
-    }
-    return out.distinct().ifEmpty { listOf("🎉", "😄", "✨") }
-}
-
-private fun DrawScope.emojiRain(t: Float, rnd: Random, measurer: TextMeasurer, text: String) {
-    val emojis = emojisOf(text)
-    val alpha = fade(t, 0.02f, 0.85f)
-    repeat(60) {
-        val x = rnd.nextFloat() * size.width
-        val delay = rnd.nextFloat() * 0.4f
-        val speed = 0.7f + rnd.nextFloat() * 0.7f
-        val local = ((t - delay) / (1f - delay)).coerceIn(0f, 1f)
-        if (local <= 0f) return@repeat
-        val y = -80f + local * speed * (size.height + 160f)
-        val e = emojis[rnd.nextInt(emojis.size)]
-        rotate(sin(local * 6f + it) * 25f, Offset(x, y)) {
-            drawText(measurer, e, Offset(x, y), TextStyle(fontSize = (22 + rnd.nextInt(20)).sp, color = Color.Black.copy(alpha = alpha)))
-        }
     }
 }
 
@@ -334,7 +302,7 @@ private fun DrawScope.rainbow(t: Float) {
     }
 }
 
-private fun DrawScope.money(t: Float, rnd: Random, measurer: TextMeasurer) {
+private fun DrawScope.money(t: Float, rnd: Random) {
     val alpha = fade(t, 0.02f, 0.85f)
     repeat(45) {
         val x0 = rnd.nextFloat() * size.width
@@ -343,9 +311,10 @@ private fun DrawScope.money(t: Float, rnd: Random, measurer: TextMeasurer) {
         if (local <= 0f) return@repeat
         val y = -60f + local * (size.height + 120f) * (0.6f + rnd.nextFloat() * 0.5f)
         val x = x0 + sin(local * 9f + it) * 50f
-        val symbol = if (rnd.nextInt(4) == 0) "🪙" else "💵"
+        val w = 32f + rnd.nextFloat() * 12f
         rotate(sin(local * 8f + it) * 40f, Offset(x, y)) {
-            drawText(measurer, symbol, Offset(x, y), TextStyle(fontSize = 30.sp, color = Color.Black.copy(alpha = alpha)))
+            drawRoundRect(Color(0xFF8BC34A).copy(alpha = alpha), Offset(x - w, y - w * 0.55f), Size(w * 2f, w * 1.1f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f))
+            drawCircle(Color(0xFFFFD54F).copy(alpha = alpha), w * 0.28f, Offset(x, y))
         }
     }
 }
