@@ -4,6 +4,7 @@ package com.chatty.fr.ui
 
 import android.content.ContentValues
 import android.content.Intent
+import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,6 +45,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -106,16 +110,20 @@ fun AttachmentView(attachment: Attachment, onOpen: () -> Unit, onLongPress: () -
                 attachment.isAudio -> Icons.Default.Audiotrack to "Message audio"
                 else -> Icons.Default.ContactPage to "Carte de contact"
             }
-            Row(
-                Modifier
-                    .clip(shape)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                    .combinedClickableCompat({ openExternally(context, attachment) }, onLongPress)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
-                Text(label, modifier = Modifier.padding(start = 10.dp))
+            if (attachment.isAudio) {
+                AudioAttachmentView(attachment, onLongPress)
+            } else {
+                Row(
+                    Modifier
+                        .clip(shape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .combinedClickableCompat({ openExternally(context, attachment) }, onLongPress)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(icon ?: Icons.Default.ContactPage, null, tint = MaterialTheme.colorScheme.primary)
+                    Text(label, modifier = Modifier.padding(start = 10.dp))
+                }
             }
         }
     }
