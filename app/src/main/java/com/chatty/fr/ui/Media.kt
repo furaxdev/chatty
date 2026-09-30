@@ -211,6 +211,106 @@ fun ImageViewer(attachment: Attachment, onClose: () -> Unit) {
     }
 }
 
+@Composable
+private fun AudioAttachmentView(attachment: Attachment, onLongPress: () -> Unit) {
+    val context = LocalContext.current
+    var prepared by remember { mutableStateOf(false) }
+    var playing by remember { mutableStateOf(false) }
+    var progress by remember { mutableFloatStateOf(0f) }
+    var durationMs by remember { mutableFloatStateOf(0f) }
+    val player = remember(attachment.uri) { MediaPlayer() }
+
+    DisposableEffect(attachment.uri) {
+        var active = true
+        player.setOnPreparedListener {
+            if (active) {
+                durationMs = it.duration.toFloat()
+                prepared = true
+            }
+        }
+        player.setOnCompletionListener {
+            playing = false
+            progress = 1f
+        }
+        player.setOnErrorListener { _, _, _ ->
+            playing = false
+            prepared = false
+            true
+        }
+        runCatching {
+            player.setDataSource(context, Uri.parse(attachment.uri))
+            player.prepareAsync()
+        }.onFailure {
+            prepared = false
+        }
+        onDispose {
+            active = false
+            runCatching { player.stop() }
+            player.release()
+        }
+    }
+
+    LaunchedEffect(playing, prepared) {
+        while (playing && prepared) {
+            val duration = player.duration.coerceAtLeast(1)
+            progress = (player.currentPosition.toFloat() / duration).coerceIn(0f, 1f)
+            kotlinx.coroutines.delay(100L)
+        }
+    }
+
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .combinedClickableCompat({
+                if (!prepared) return@combinedClickableCompat
+                runCatching {
+                    if (player.isPlaying) {
+                        player.pause()
+                        playing = false
+                    } else {
+                        player.start()
+                        playing = true
+                    }
+                }
+            }, onLongPress)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = {
+            if (!prepared) return@IconButton
+            runCatching {
+                if (player.isPlaying) {
+                    player.pause()
+                    playing = false
+                } else {
+                    player.start()
+                    playing = true
+                }
+            }
+        }) {
+            Icon(
+                if (playing) Icons.Default.Close else Icons.Default.PlayCircle,
+                contentDescription = if (playing) "Pause" else "Lire",
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+        androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+            Text(if (prepared) "Message vocal" else "Chargement…")
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            )
+        }
+        Text(formatDuration(durationMs.toInt()), modifier = Modifier.padding(start = 10.dp))
+    }
+}
+
+private fun formatDuration(ms: Int): String {
+    val totalSeconds = (ms / 1000).coerceAtLeast(0)
+    return "%d:%02d".format(totalSeconds / 60, totalSeconds % 60)
+}
+
 private fun saveToGallery(context: android.content.Context, a: Attachment) {
     runCatching {
         val ext = a.contentType.substringAfter('/').substringBefore(';').ifBlank { "jpg" }
