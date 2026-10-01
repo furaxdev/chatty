@@ -116,6 +116,16 @@ fun SettingsScreen(store: ChattyStore, onBack: () -> Unit, onBlocked: () -> Unit
                     "Rejoue les effets (confettis, lasers…) à la réception",
                     store.autoPlayEffects,
                 ) { store.autoPlayEffects = it }
+                Toggle(
+                    "Compatibilité iPhone",
+                    "Ajoute « (Envoyé avec l'effet « Ballons ») » pour les effets qui existent sur iMessage",
+                    store.iPhoneEffects,
+                ) { store.iPhoneEffects = it }
+                Toggle(
+                    "Effets par mots-clés",
+                    "Comme iMessage : « Joyeux anniversaire » 🎈, « Félicitations » 🎊, « Bonne année » 🎆, « pew pew » 🪩",
+                    store.keywordEffects,
+                ) { store.keywordEffects = it }
                 Toggle("Vibrations", "Retour haptique à l'appui long", store.haptics) { store.haptics = it }
                 ListItem(
                     headlineContent = { Text("Astuce") },

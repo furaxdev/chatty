@@ -43,6 +43,10 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -89,7 +93,8 @@ fun EffectPicker(
     ) {
         // Effet plein écran joué en boucle en arrière-plan (onglet Écran).
         if (tab == 1) {
-            val effect = MessageEffect.screen[pager.currentPage]
+            // On attend que la page soit posée : relancer l'effet pendant le geste le saccadait.
+            val effect = MessageEffect.screen[pager.settledPage]
             androidx.compose.runtime.key(effect, loop) {
                 ScreenEffectOverlay(effect, text) { loop++ }
             }
@@ -155,34 +160,63 @@ fun EffectPicker(
                     }
                 }
             } else {
-                HorizontalPager(pager, Modifier.weight(1f).fillMaxWidth()) {
-                    Box(Modifier.fillMaxSize())
+                val scope = rememberCoroutineScope()
+                // Toute la zone (bulle + nom de l'effet) est balayable, comme sur iMessage.
+                HorizontalPager(pager, Modifier.weight(1f).fillMaxWidth()) { page ->
+                    val effect = MessageEffect.screen[page]
+                    Column(
+                        Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.Bottom,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        PreviewBubble(text, null, null, bubbleColor, onBubbleColor)
+                        Spacer(Modifier.height(24.dp))
+                        Text(
+                            "${effect.emoji}  ${effect.label}",
+                            color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                        )
+                        if (effect.isIMessageEffect) {
+                            Text("Aussi sur iMessage", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                        }
+                    }
                 }
-                PreviewBubble(text, null, null, bubbleColor, onBubbleColor)
-                Spacer(Modifier.height(24.dp))
                 val current = MessageEffect.screen[pager.currentPage]
                 LaunchedEffect(pager.currentPage) {
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
-                Text(
-                    "${current.emoji}  ${current.label}",
-                    color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                )
                 Spacer(Modifier.height(8.dp))
-                Row(Modifier.align(Alignment.CenterHorizontally), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    repeat(MessageEffect.screen.size) { i ->
-                        val a by animateFloatAsState(if (i == pager.currentPage) 1f else 0.35f, label = "dot")
-                        Box(Modifier.size(7.dp).clip(CircleShape).background(Color.White.copy(alpha = a)))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    IconButton(
+                        onClick = { scope.launch { pager.animateScrollToPage((pager.currentPage - 1).coerceAtLeast(0)) } },
+                        enabled = pager.currentPage > 0,
+                    ) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Effet précédent", tint = Color.White) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        repeat(MessageEffect.screen.size) { i ->
+                            val a by animateFloatAsState(if (i == pager.currentPage) 1f else 0.35f, label = "dot")
+                            Box(
+                                Modifier
+                                    .size(12.dp)
+                                    .clip(CircleShape)
+                                    .clickable { scope.launch { pager.animateScrollToPage(i) } },
+                                contentAlignment = Alignment.Center,
+                            ) { Box(Modifier.size(7.dp).clip(CircleShape).background(Color.White.copy(alpha = a))) }
+                        }
                     }
+                    IconButton(
+                        onClick = { scope.launch { pager.animateScrollToPage((pager.currentPage + 1).coerceAtMost(MessageEffect.screen.lastIndex)) } },
+                        enabled = pager.currentPage < MessageEffect.screen.lastIndex,
+                    ) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Effet suivant", tint = Color.White) }
                 }
-                Spacer(Modifier.height(4.dp))
                 Text(
-                    "Balayez pour changer d'effet",
+                    "Balayez ou touchez les flèches",
                     color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp,
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     SendButton(bubbleColor, onBubbleColor) { onSend(current) }
                 }

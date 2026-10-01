@@ -336,7 +336,7 @@ fun MessageBubble(
                     MessageStatus.FAILED -> "Échec · Touchez pour réessayer"
                     MessageStatus.RECEIVED -> null
                 }
-                val effectLabel = m.effect?.let { " · ${it.emoji} ${it.label}" }.orEmpty()
+                val effectLabel = m.effect?.takeUnless { m.effectFromKeyword }?.let { " · ${it.emoji} ${it.label}" }.orEmpty()
                 Text(
                     formatTime(m.date) + (status?.let { " · $it" } ?: "") + effectLabel,
                     fontSize = 11.sp,

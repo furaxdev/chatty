@@ -148,6 +148,16 @@ class ChattyStore private constructor(context: Context) {
         get() = prefs.getBoolean("auto_play_effects", true)
         set(value) { prefs.edit { putBoolean("auto_play_effects", value) }; bump() }
 
+    /** Indique en clair l'effet pour les iPhone : « (Envoyé avec l'effet « Ballons ») ». */
+    var iPhoneEffects: Boolean
+        get() = prefs.getBoolean("iphone_effects", true)
+        set(value) { prefs.edit { putBoolean("iphone_effects", value) }; bump() }
+
+    /** Mots-clés qui déclenchent un effet, comme iMessage (« Joyeux anniversaire » → ballons). */
+    var keywordEffects: Boolean
+        get() = prefs.getBoolean("keyword_effects", true)
+        set(value) { prefs.edit { putBoolean("keyword_effects", value) }; bump() }
+
     var haptics: Boolean
         get() = prefs.getBoolean("haptics", true)
         set(value) { prefs.edit { putBoolean("haptics", value) }; bump() }

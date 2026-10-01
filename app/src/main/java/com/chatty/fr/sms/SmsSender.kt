@@ -49,7 +49,7 @@ object SmsSender {
         val store = ChattyStore.get(context)
         val signature = if (withSignature) store.signature.trim() else ""
         val withSig = if (signature.isNotEmpty()) "$text\n$signature" else text
-        val body = EffectCodec.encode(withSig, effect)
+        val body = EffectCodec.encode(withSig, effect, store.iPhoneEffects)
         if (address.contains(',')) {
             // Conversation de groupe : un seul MMS pour tout le monde.
             val recipients = address.split(',').map { it.trim() }.filter { it.isNotEmpty() }
@@ -77,7 +77,7 @@ object SmsSender {
         val recipients = address.split(',').map { it.trim() }.filter { it.isNotEmpty() }
         val threadId = if (threadIdHint > 0) threadIdHint
         else android.provider.Telephony.Threads.getOrCreateThreadId(context, recipients.toSet())
-        val body = text?.takeIf { it.isNotBlank() }?.let { EffectCodec.encode(it, effect) }
+        val body = text?.takeIf { it.isNotBlank() }?.let { EffectCodec.encode(it, effect, ChattyStore.get(context).iPhoneEffects) }
         MmsTransport.send(context, threadId, recipients, body, attachments, subId)
         return threadId
     }

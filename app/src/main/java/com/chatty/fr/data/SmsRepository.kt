@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.ContactsContract
 import android.provider.Telephony
 import com.chatty.fr.effects.EffectCodec
+import com.chatty.fr.effects.IMessageCompat
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -21,6 +22,7 @@ class SmsRepository(private val context: Context) {
 
     private val resolver get() = context.contentResolver
     private val contactCache = ConcurrentHashMap<String, Contact>()
+    private val keywordEffects get() = ChattyStore.get(context).keywordEffects
 
     fun conversations(store: ChattyStore): List<Conversation> {
         val projection = arrayOf(
@@ -171,8 +173,10 @@ class SmsRepository(private val context: Context) {
 
         return rows.map { r ->
             val raw = texts[r.id]?.toString().orEmpty().ifEmpty { r.subject.orEmpty() }
-            val (decoded, effect) = EffectCodec.decode(raw)
+            val (decoded, marked) = EffectCodec.decode(raw)
             val (quote, body) = MessageFormat.decodeReply(decoded)
+            val keyword = if (marked == null && keywordEffects) IMessageCompat.keywordEffect(body) else null
+            val effect = marked ?: keyword
             val mine = r.box != Telephony.Mms.MESSAGE_BOX_INBOX
             val id = -r.id
             Message(
@@ -196,6 +200,7 @@ class SmsRepository(private val context: Context) {
                 subId = r.sub,
                 attachments = attachments[r.id].orEmpty(),
                 isMms = true,
+                effectFromKeyword = keyword != null,
             )
         }
     }
@@ -222,8 +227,10 @@ class SmsRepository(private val context: Context) {
                 val type = c.getInt(4)
                 if (type == Telephony.Sms.MESSAGE_TYPE_DRAFT) continue
                 val id = c.getLong(0)
-                val (decoded, effect) = EffectCodec.decode(c.getString(2).orEmpty())
+                val (decoded, marked) = EffectCodec.decode(c.getString(2).orEmpty())
                 val (quote, body) = MessageFormat.decodeReply(decoded)
+                val keyword = if (marked == null && keywordEffects) IMessageCompat.keywordEffect(body) else null
+                val effect = marked ?: keyword
                 val status = when (type) {
                     Telephony.Sms.MESSAGE_TYPE_INBOX -> MessageStatus.RECEIVED
                     Telephony.Sms.MESSAGE_TYPE_OUTBOX, Telephony.Sms.MESSAGE_TYPE_QUEUED -> MessageStatus.SENDING
@@ -244,6 +251,7 @@ class SmsRepository(private val context: Context) {
                     starred = store.isStarred(id),
                     quote = quote,
                     subId = c.getInt(7),
+                    effectFromKeyword = keyword != null,
                 )
             }
         }

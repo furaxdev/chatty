@@ -43,6 +43,8 @@ data class Message(
     val subId: Int = -1,
     val attachments: List<Attachment> = emptyList(),
     val isMms: Boolean = false,
+    /** Effet déclenché par un mot-clé (« Joyeux anniversaire »…), comme sur iMessage. */
+    val effectFromKeyword: Boolean = false,
 ) {
     val myReaction: String? get() = reactions.lastOrNull { it.mine }?.emoji
 }
