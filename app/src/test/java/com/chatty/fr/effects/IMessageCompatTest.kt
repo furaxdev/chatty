@@ -21,6 +21,19 @@ class IMessageCompatTest {
     }
 
     @Test
+    fun `mention iPhone francaise avec article`() {
+        // Message réel reçu d'un iPhone (capture de Furax)
+        assertEquals("Bcccnxnnx'f" to MessageEffect.LASERS, EffectCodec.decode("Bcccnxnnx'f\n(envoyé avec des lasers)"))
+        assertEquals("Tkt" to MessageEffect.CONFETTI, EffectCodec.decode("Tkt (envoyé avec des confettis)"))
+        assertEquals("Je t'aime" to MessageEffect.LOVE, EffectCodec.decode("Je t'aime (envoyé avec de l'amour)"))
+        assertEquals("Allô" to MessageEffect.ECHO, EffectCodec.decode("Allô (envoyé avec un écho)"))
+        assertEquals("Wow" to MessageEffect.FIREWORKS, EffectCodec.decode("Wow (envoyé avec des feux d'artifice)"))
+        assertEquals("Hey" to MessageEffect.SHOOTING_STARS, EffectCodec.decode("Hey (envoyé avec une étoile filante)"))
+        assertEquals("Chut" to MessageEffect.INVISIBLE_INK, EffectCodec.decode("Chut (envoyé avec de l'encre invisible)"))
+        assertEquals("Ok" to MessageEffect.SLAM, EffectCodec.decode("Ok (Sent with Slam effect)"))
+    }
+
+    @Test
     fun `envoi avec mention iPhone puis relecture par Chatty`() {
         MessageEffect.entries.forEach { effect ->
             val sent = EffectCodec.encode("Salut", effect, iPhoneLabel = true)

@@ -177,6 +177,7 @@ fun MessageBubble(
     onCopyCode: (String) -> Unit,
     senderName: String? = null,
     onOpenAttachment: (com.chatty.fr.data.Attachment) -> Unit = {},
+    onReplayEffect: () -> Unit = {},
 ) {
     val big = 20.dp
     val small = 4.dp
@@ -338,10 +339,19 @@ fun MessageBubble(
                 }
                 val effectLabel = m.effect?.takeUnless { m.effectFromKeyword }?.let { " · ${it.emoji} ${it.label}" }.orEmpty()
                 Text(
-                    formatTime(m.date) + (status?.let { " · $it" } ?: "") + effectLabel,
+                    formatTime(m.date) + (status?.let { " · $it" } ?: ""),
                     fontSize = 11.sp,
                     color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (effectLabel.isNotEmpty()) {
+                    // Toucher l'étiquette rejoue l'effet.
+                    Text(
+                        "$effectLabel ↻",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onReplayEffect),
+                    )
+                }
             }
         } else if (m.starred) {
             Icon(Icons.Default.Star, null, tint = Color(0xFFFFB300), modifier = Modifier.size(12.dp).padding(horizontal = 6.dp))

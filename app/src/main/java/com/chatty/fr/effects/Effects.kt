@@ -84,18 +84,20 @@ object IMessageCompat {
     /** Noms des effets iMessage (anglais et français) → effet Chatty. */
     private val names: Map<String, MessageEffect> = mapOf(
         "slam" to MessageEffect.SLAM, "claquer" to MessageEffect.SLAM, "claqué" to MessageEffect.SLAM,
+        "claquement" to MessageEffect.SLAM, "impact" to MessageEffect.SLAM,
         "loud" to MessageEffect.LOUD, "fort" to MessageEffect.LOUD,
         "gentle" to MessageEffect.GENTLE, "doux" to MessageEffect.GENTLE, "doucement" to MessageEffect.GENTLE,
         "invisible ink" to MessageEffect.INVISIBLE_INK, "encre invisible" to MessageEffect.INVISIBLE_INK,
-        "echo" to MessageEffect.ECHO, "écho" to MessageEffect.ECHO,
-        "spotlight" to MessageEffect.SPOTLIGHT, "projecteur" to MessageEffect.SPOTLIGHT,
-        "balloons" to MessageEffect.BALLOONS, "ballons" to MessageEffect.BALLOONS,
+        "echo" to MessageEffect.ECHO, "écho" to MessageEffect.ECHO, "échos" to MessageEffect.ECHO,
+        "spotlight" to MessageEffect.SPOTLIGHT, "projecteur" to MessageEffect.SPOTLIGHT, "projecteurs" to MessageEffect.SPOTLIGHT,
+        "balloons" to MessageEffect.BALLOONS, "ballons" to MessageEffect.BALLOONS, "ballon" to MessageEffect.BALLOONS,
         "confetti" to MessageEffect.CONFETTI, "confettis" to MessageEffect.CONFETTI,
         "love" to MessageEffect.LOVE, "amour" to MessageEffect.LOVE,
         "lasers" to MessageEffect.LASERS, "laser" to MessageEffect.LASERS,
         "fireworks" to MessageEffect.FIREWORKS, "feux d'artifice" to MessageEffect.FIREWORKS,
         "feux d’artifice" to MessageEffect.FIREWORKS, "feu d'artifice" to MessageEffect.FIREWORKS,
         "celebration" to MessageEffect.CELEBRATION, "célébration" to MessageEffect.CELEBRATION,
+        "celebrations" to MessageEffect.CELEBRATION, "célébrations" to MessageEffect.CELEBRATION, "fête" to MessageEffect.CELEBRATION,
         "shooting star" to MessageEffect.SHOOTING_STARS, "étoile filante" to MessageEffect.SHOOTING_STARS,
         "étoiles filantes" to MessageEffect.SHOOTING_STARS,
     )
@@ -106,12 +108,25 @@ object IMessageCompat {
         RegexOption.IGNORE_CASE,
     )
 
+    /** Articles et mots ajoutés par iOS (« des lasers », « de l'amour », « l'effet Écho »…). */
+    private val ARTICLE = Regex(
+        "^(?:(?:l['’]effet|effet|the|des|du|de la|de|les|le|la|une|un|an|a)\\s+|de l['’]|l['’])",
+        RegexOption.IGNORE_CASE,
+    )
+    private val TRAILING = Regex("\\s+(?:effect|effet)$", RegexOption.IGNORE_CASE)
+
+    private fun normalize(raw: String): String {
+        var n = raw.trim().replace(Regex("\\s+"), " ")
+        repeat(2) { n = ARTICLE.replace(n, "") }
+        return TRAILING.replace(n, "").trim().lowercase()
+    }
+
     fun suffix(effect: MessageEffect) = " (Envoyé avec l'effet « ${effect.label} »)"
 
     /** Retire la mention « (Sent with …) » et renvoie l'effet reconnu. */
     fun decode(text: String): Pair<String, MessageEffect?> {
         val m = SUFFIX.find(text) ?: return text to null
-        val name = m.groupValues[1].trim().lowercase()
+        val name = normalize(m.groupValues[1])
         val effect = names[name] ?: return text to null
         return text.substring(0, m.range.first) to effect
     }

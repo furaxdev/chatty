@@ -354,6 +354,7 @@ fun ChatScreen(
                                         Toast.makeText(context, "Code $code copié", Toast.LENGTH_SHORT).show()
                                     },
                                     senderName = if (isGroup && !row.m.isMine && row.m.address.isNotBlank()) vm.contact(row.m.address).displayName else null,
+                                    onReplayEffect = { play(row.m) },
                                     onOpenAttachment = { a ->
                                         if (a.isImage) viewing = a
                                         else runCatching {
