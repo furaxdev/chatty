@@ -146,15 +146,31 @@ object IMessageCompat {
     fun suffix(effect: MessageEffect) = " (Envoyé avec l'effet « ${effect.label} »)"
 
     /** Retire le lien Chatty ou la mention « (Sent with …) » et renvoie l'effet reconnu. */
-    fun decode(text: String): Pair<String, MessageEffect?> {
+    fun decode(raw: String): Pair<String, MessageEffect?> {
+        val text = tidy(raw)
         LINK.find(text)?.let { m ->
             val effect = MessageEffect.entries.firstOrNull { it.name.lowercase() == m.groupValues[1] }
             if (effect != null) return text.substring(0, m.range.first) to effect
         }
-        val m = SUFFIX.find(text) ?: return text to null
+        val m = SUFFIX.find(text) ?: return raw to null
         val name = normalize(m.groupValues[1])
-        val effect = names[name] ?: return text to null
+        // Nom exact, sinon nom contenu dans la mention (« des lasers verts »…), du plus long au plus court.
+        val effect = names[name]
+            ?: names.keys.sortedByDescending { it.length }.firstOrNull { name.contains(it) }?.let { names[it] }
+            ?: return raw to null
         return text.substring(0, m.range.first) to effect
+    }
+
+    private val INVISIBLE_TAIL = Regex("[\\s\\u200B\\u200E\\u200F\\u2060-\\u2064\\u2066-\\u2069\\uFEFF]+$")
+    private val SPECIAL_SPACES = Regex("[\\u00A0\\u2007\\u202F\\u2009]")
+
+    /**
+     * Les iPhone utilisent parfois des espaces insécables, des « é » décomposés (e + accent)
+     * ou des marques invisibles en fin de message : on normalise avant de chercher la mention.
+     */
+    private fun tidy(raw: String): String {
+        val nfc = java.text.Normalizer.normalize(raw, java.text.Normalizer.Form.NFC)
+        return INVISIBLE_TAIL.replace(SPECIAL_SPACES.replace(nfc, " "), "")
     }
 
     private class Trigger(val regex: Regex, val effect: MessageEffect)

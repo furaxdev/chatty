@@ -34,6 +34,15 @@ class IMessageCompatTest {
     }
 
     @Test
+    fun `mention iPhone avec caracteres speciaux`() {
+        // « é » décomposé (e + accent combinant), espace insécable, marque invisible finale
+        val decomposed = "Yo\n(envoye\u0301 avec des lasers)"
+        assertEquals("Yo" to MessageEffect.LASERS, EffectCodec.decode(decomposed))
+        assertEquals("Yo" to MessageEffect.LASERS, EffectCodec.decode("Yo\n(envoyé\u00A0avec\u202Fdes lasers)\u200E"))
+        assertEquals("Yo" to MessageEffect.LASERS, EffectCodec.decode("Yo (ENVOYÉ AVEC DES LASERS) "))
+    }
+
+    @Test
     fun `envoi avec mention iPhone puis relecture par Chatty`() {
         MessageEffect.entries.forEach { effect ->
             val sent = EffectCodec.encode("Salut", effect, iPhoneLabel = true)

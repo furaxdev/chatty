@@ -188,7 +188,13 @@ fun SettingsScreen(store: ChattyStore, onBack: () -> Unit, onBlocked: () -> Unit
                 )
                 ListItem(
                     headlineContent = { Text("Chatty") },
-                    supportingContent = { Text("Version 1.0.0 · par FuraxDev") },
+                    supportingContent = {
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        val version = remember {
+                            runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "?"
+                        }
+                        Text("Version $version · par FuraxDev")
+                    },
                 )
             }
         }
