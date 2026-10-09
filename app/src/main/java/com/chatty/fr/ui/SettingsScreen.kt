@@ -118,7 +118,7 @@ fun SettingsScreen(store: ChattyStore, onBack: () -> Unit, onBlocked: () -> Unit
                 ) { store.autoPlayEffects = it }
                 Toggle(
                     "Compatibilité iPhone",
-                    "Ajoute « (Envoyé avec l'effet « Ballons ») » pour les effets qui existent sur iMessage",
+                    "Ajoute un lien pour que les iPhone (et téléphones sans Chatty) voient l'animation",
                     store.iPhoneEffects,
                 ) { store.iPhoneEffects = it }
                 Toggle(

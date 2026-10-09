@@ -10,6 +10,10 @@ Comme sur iPhone : un appui long sur le bouton Envoyer ouvre l'écran « Envoyer
 - **Bulle** : Claquer 💥, Fort 📢, Doux 🪶, Encre invisible 🫥 (touchez pour révéler), Secousse 🫨
 - **Écran** : Écho, Projecteur, Ballons, Confettis, Amour, Lasers, Feux d'artifice, Célébration, Neige
 
+Pour les iPhone et téléphones sans Chatty, l'option « Compatibilité iPhone » ajoute un lien
+(`https://furaxdev.github.io/chatty/e/#effet.texte`) : en le touchant, ils voient le message avec
+son animation (page web du dossier `docs/`, publiée par GitHub Pages).
+
 L'effet voyage dans le SMS sous forme de caractères invisibles : les autres téléphones voient
 le texte normal, Chatty rejoue l'animation à la réception. (Ces caractères font passer le SMS en
 encodage Unicode, soit 70 caractères par SMS au lieu de 160, uniquement quand un effet est choisi.)

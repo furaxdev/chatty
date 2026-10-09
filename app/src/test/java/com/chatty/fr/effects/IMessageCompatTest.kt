@@ -42,11 +42,29 @@ class IMessageCompatTest {
     }
 
     @Test
-    fun `seuls les effets iMessage recoivent la mention visible`() {
-        val visible = EffectCodec.encode("Hey", MessageEffect.CONFETTI, iPhoneLabel = true).filter { it.code >= 32 && it != '⁣' && it != '​' }
-        assertEquals("Hey (Envoyé avec l'effet « Confettis »)", visible)
-        val snow = EffectCodec.encode("Hey", MessageEffect.SNOW, iPhoneLabel = true).filter { it.code >= 32 && it != '⁣' && it != '​' }
-        assertEquals("Hey", snow)
+    fun `lien vers l'animation pour les iPhone`() {
+        val visible = EffectCodec.encode("Hi", MessageEffect.LASERS, iPhoneLabel = true)
+            .filter { it != '\u2063' && it != '\u200B' }
+        assertEquals("Hi\n🪩 Voir l'effet : https://furaxdev.github.io/chatty/e/#lasers.SGk", visible)
+        // Effets propres à Chatty aussi : la page web les rejoue tous.
+        val snow = EffectCodec.encode("Hey", MessageEffect.SNOW, iPhoneLabel = true)
+        assertEquals(true, snow.contains("https://furaxdev.github.io/chatty/e/#snow.SGV5"))
+    }
+
+    @Test
+    fun `lien recu sans marqueur Chatty`() {
+        // Ex. un SMS transféré ou copié : le lien seul suffit à retrouver l'effet.
+        assertEquals(
+            "Bonne nuit" to MessageEffect.SHOOTING_STARS,
+            EffectCodec.decode("Bonne nuit\n🌠 Voir l'effet : https://furaxdev.github.io/chatty/e/#shooting_stars.Qm9ubmUgbnVpdA"),
+        )
+    }
+
+    @Test
+    fun `texte accentue dans le lien`() {
+        val link = IMessageCompat.link("Ça marche 🎉", MessageEffect.CONFETTI)
+        val b64 = link.substringAfter("#confetti.")
+        assertEquals("Ça marche 🎉", String(java.util.Base64.getUrlDecoder().decode(b64), Charsets.UTF_8))
     }
 
     @Test

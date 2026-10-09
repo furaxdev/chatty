@@ -52,13 +52,13 @@ object EffectCodec {
     private val PATTERN = Regex("\u2063\u2063(\u200B+)\u2063$")
 
     /**
-     * Ajoute l'effet au texte. Avec [iPhoneLabel], les effets qui existent sur iMessage sont
-     * aussi indiqués en clair, comme le fait un iPhone quand un iMessage passe en SMS :
-     * « (Envoyé avec l'effet « Ballons ») ». Chatty le reconnaît dans les deux sens.
+     * Ajoute l'effet au texte. Avec [iPhoneLabel], un lien est ajouté pour les téléphones sans
+     * Chatty (iPhone…) : en le touchant, ils voient le message avec son animation. Chatty masque
+     * ce lien et joue l'effet directement.
      */
     fun encode(text: String, effect: MessageEffect?, iPhoneLabel: Boolean = false): String {
         if (effect == null) return text
-        val visible = if (iPhoneLabel && effect.isIMessageEffect) text + IMessageCompat.suffix(effect) else text
+        val visible = if (iPhoneLabel) text + IMessageCompat.linkLine(text, effect) else text
         return visible + START + UNIT.toString().repeat(effect.ordinal + 1) + END
     }
 
@@ -121,10 +121,36 @@ object IMessageCompat {
         return TRAILING.replace(n, "").trim().lowercase()
     }
 
+    /** Page web qui rejoue un effet (hébergée par GitHub Pages, dossier docs/ du dépôt). */
+    const val EFFECT_PAGE = "https://furaxdev.github.io/chatty/e/"
+
+    /** Les messages plus longs ne sont pas recopiés dans le lien (SMS trop long). */
+    private const val MAX_LINK_TEXT = 160
+
+    /** Lien vers l'animation : …/e/#lasers.<texte en base64url>. */
+    fun link(text: String, effect: MessageEffect): String {
+        val id = effect.name.lowercase()
+        val clean = text.trim()
+        if (clean.isEmpty() || clean.length > MAX_LINK_TEXT) return "$EFFECT_PAGE#$id"
+        val b64 = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(clean.toByteArray(Charsets.UTF_8))
+        return "$EFFECT_PAGE#$id.$b64"
+    }
+
+    /** Ligne ajoutée au SMS pour les iPhone : « 🪩 Voir l'effet : https://… ». */
+    fun linkLine(text: String, effect: MessageEffect) = "\n${effect.emoji} Voir l'effet : ${link(text, effect)}"
+
+    private val LINK = Regex(
+        "\\s*\\S*\\s*Voir l['’]effet\\s*:\\s*https?://furaxdev\\.github\\.io/chatty/e/?#([a-z_]+)(?:\\.[A-Za-z0-9_-]*)?\\s*$",
+    )
+
     fun suffix(effect: MessageEffect) = " (Envoyé avec l'effet « ${effect.label} »)"
 
-    /** Retire la mention « (Sent with …) » et renvoie l'effet reconnu. */
+    /** Retire le lien Chatty ou la mention « (Sent with …) » et renvoie l'effet reconnu. */
     fun decode(text: String): Pair<String, MessageEffect?> {
+        LINK.find(text)?.let { m ->
+            val effect = MessageEffect.entries.firstOrNull { it.name.lowercase() == m.groupValues[1] }
+            if (effect != null) return text.substring(0, m.range.first) to effect
+        }
         val m = SUFFIX.find(text) ?: return text to null
         val name = normalize(m.groupValues[1])
         val effect = names[name] ?: return text to null
