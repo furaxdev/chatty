@@ -1,0 +1,33 @@
+name: Zen release
+
+# Publie l'appli Zen (APK fourni dans releases/zen/) dans une Release dédiée,
+# indépendante de Chatty : elle n'est pas marquée « latest ».
+on:
+  push:
+    paths:
+      - 'releases/zen/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vérifier l'APK
+        run: |
+          test -s releases/zen/Zen-2.0.apk
+          sha256sum releases/zen/Zen-2.0.apk
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: zen-v2.0
+          target_commitish: ${{ github.sha }}
+          name: 🧘 Zen 2.0
+          body_path: releases/zen/NOTES.md
+          files: releases/zen/Zen-2.0.apk
+          prerelease: false
+          make_latest: false

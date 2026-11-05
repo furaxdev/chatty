@@ -2,6 +2,10 @@ name: Android
 
 on:
   push:
+    # Les autres applis publiées ici (Zen) ne relancent pas le build de Chatty.
+    paths-ignore:
+      - 'releases/**'
+      - '.github/workflows/zen-release.yml'
   pull_request:
   workflow_dispatch:
 
